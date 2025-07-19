@@ -3,18 +3,27 @@ import { uploadImage, deleteImage } from '../utils/cloudinary.js';
 import { NotFoundError, UnauthorizedError } from '../middlewares/error.js';
 
 export const UserService = {
-  async getAll({ search, page = 1, limit = 10 }) {
+  async getAll({ search, page = 1, limit = 10, userType = null }) {
     const query = {};
+    
+    // Filter by user type if specified (for admin panel, we want only customers)
+    if (userType) {
+      query.userType = userType;
+    }
+    
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
       ];
     }
+    
     const users = await User.find(query)
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .select('-password -currentOTP');
+      .select('-password -currentOTP')
+      .sort({ createdAt: -1 });
+      
     const total = await User.countDocuments(query);
     return { users, total, page, limit };
   },

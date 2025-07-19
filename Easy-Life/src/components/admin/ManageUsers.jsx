@@ -35,27 +35,45 @@ const ManageUsers = ({ onBack }) => {
     total: 0,
     activeToday: 0,
   });
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    limit: 5,
+  });
 
   // Fetch users from backend
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [pagination.currentPage]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = pagination.currentPage) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getAdminUsers({ search: searchQuery });
+      const response = await apiService.getAdminUsers({ 
+        search: searchQuery,
+        page: page,
+        limit: pagination.limit,
+        userType: 'customer' // Only fetch customer users
+      });
       
       if (response.success) {
-        // Filter only customer users as per the original logic
-        const customerUsers = response.data.users.filter(user => user.userType === 'customer');
-        setAllUsers(customerUsers);
+        // No need to filter since backend already filters by userType
+        setAllUsers(response.data.users);
         
-        // Calculate stats
+        // Update pagination info
+        setPagination(prev => ({
+          ...prev,
+          currentPage: page,
+          totalPages: Math.ceil(response.data.total / prev.limit),
+          totalUsers: response.data.total,
+        }));
+        
+        // Calculate stats (use total from response, not filtered)
         setUserStats({
-          total: customerUsers.length,
-          activeToday: Math.floor(customerUsers.filter(u => u.isActive).length * 0.3), // Approximate active today
+          total: response.data.total,
+          activeToday: Math.floor(response.data.users.filter(u => u.isActive).length * 0.3), // Approximate active today
         });
       } else {
         setError('Failed to load users');
@@ -68,20 +86,16 @@ const ManageUsers = ({ onBack }) => {
     }
   };
 
-  // Filter users based on search query
-  const filteredUsers = allUsers.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesSearch;
-  });
+  // Since search is handled by backend, we use allUsers directly
+  const filteredUsers = allUsers;
 
   // Refetch when search query changes
   useEffect(() => {
     if (searchQuery.length > 2 || searchQuery.length === 0) {
       const timeoutId = setTimeout(() => {
-        fetchUsers();
+        // Reset to page 1 when searching
+        setPagination(prev => ({ ...prev, currentPage: 1 }));
+        fetchUsers(1);
       }, 500);
       return () => clearTimeout(timeoutId);
     }
@@ -174,9 +188,6 @@ const ManageUsers = ({ onBack }) => {
               <div className="flex items-center space-x-3">
                 <Button variant="outline" icon={Download} size="sm">
                   Export
-                </Button>
-                <Button variant="primary" icon={UserPlus}>
-                  Add New User
                 </Button>
               </div>
             </div>
@@ -304,7 +315,7 @@ const ManageUsers = ({ onBack }) => {
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedUsers(filteredUsers.map((u) => u.id));
+                            setSelectedUsers(filteredUsers.map((u) => u._id || u.id));
                           } else {
                             setSelectedUsers([]);
                           }
@@ -334,7 +345,7 @@ const ManageUsers = ({ onBack }) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.map((user, index) => (
                     <motion.tr
-                      key={user.id}
+                      key={user._id || user.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -343,8 +354,8 @@ const ManageUsers = ({ onBack }) => {
                       <td className="px-6 py-5 whitespace-nowrap">
                         <input
                           type="checkbox"
-                          checked={selectedUsers.includes(user.id)}
-                          onChange={() => toggleUserSelection(user.id)}
+                          checked={selectedUsers.includes(user._id || user.id)}
+                          onChange={() => toggleUserSelection(user._id || user.id)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>
@@ -352,6 +363,7 @@ const ManageUsers = ({ onBack }) => {
                         <div className="flex items-center">
                           <img
                             src={
+                              user.profile?.avatar ||
                               user.avatar ||
                               `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                 user.name
@@ -372,7 +384,7 @@ const ManageUsers = ({ onBack }) => {
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap">
                         <span className="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                          Customer
+                          {user.userType?.charAt(0).toUpperCase() + user.userType?.slice(1) || 'Customer'}
                         </span>
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap">
@@ -388,32 +400,56 @@ const ManageUsers = ({ onBack }) => {
                         </div>
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">
-                        {user.joinedDate || "Jan 2024"}
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : 'N/A'}
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap">
-                        <span className="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          Active
+                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                          user.isBanned 
+                            ? 'bg-red-100 text-red-800' 
+                            : user.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.isBanned ? 'Banned' : user.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => handleUserAction(user.id, "edit")}
+                            onClick={() => handleUserAction(user._id || user.id, "edit")}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                             title="Edit User"
+                            disabled={actionLoading}
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleUserAction(user.id, "suspend")}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Suspend User"
-                          >
-                            <UserX className="w-4 h-4" />
-                          </button>
+                          {user.isBanned ? (
+                            <button
+                              onClick={() => handleUserAction(user._id || user.id, "unban")}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                              title="Unban User"
+                              disabled={actionLoading}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUserAction(user._id || user.id, "suspend")}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Ban User"
+                              disabled={actionLoading}
+                            >
+                              <UserX className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
                             title="More Actions"
+                            disabled={actionLoading}
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
@@ -426,7 +462,7 @@ const ManageUsers = ({ onBack }) => {
             </div>
 
             {/* Empty State */}
-            {filteredUsers.length === 0 && (
+            {filteredUsers.length === 0 && !loading && (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-sm font-medium text-gray-900 mb-2">
@@ -435,6 +471,66 @@ const ManageUsers = ({ onBack }) => {
                 <p className="text-sm text-gray-500">
                   Try adjusting your search or filter criteria.
                 </p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && !error && pagination.totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200 bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-700">
+                    Showing page {pagination.currentPage} of {pagination.totalPages} 
+                    ({pagination.totalUsers} total users)
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newPage = pagination.currentPage - 1;
+                        setPagination(prev => ({ ...prev, currentPage: newPage }));
+                        fetchUsers(newPage);
+                      }}
+                      disabled={pagination.currentPage === 1 || loading}
+                    >
+                      Previous
+                    </Button>
+                    
+                    {/* Page Numbers */}
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          onClick={() => {
+                            setPagination(prev => ({ ...prev, currentPage: pageNum }));
+                            fetchUsers(pageNum);
+                          }}
+                          disabled={loading}
+                          className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                            pageNum === pagination.currentPage
+                              ? 'bg-primary-600 text-white'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      ))}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newPage = pagination.currentPage + 1;
+                        setPagination(prev => ({ ...prev, currentPage: newPage }));
+                        fetchUsers(newPage);
+                      }}
+                      disabled={pagination.currentPage === pagination.totalPages || loading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </Card>
