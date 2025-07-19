@@ -249,6 +249,32 @@ class ApiService {
     });
   }
 
+  // Admin Booking APIs
+  async getAllBookings(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/bookings?${queryString}` : '/bookings';
+    return await this.request(endpoint);
+  }
+
+  async confirmBooking(bookingId) {
+    return await this.request(`/bookings/${bookingId}/confirm`, {
+      method: 'PUT',
+    });
+  }
+
+  async completeBooking(bookingId) {
+    return await this.request(`/bookings/${bookingId}/complete`, {
+      method: 'PUT',
+    });
+  }
+
+  async adminCancelBooking(bookingId, cancellationReason) {
+    return await this.request(`/bookings/${bookingId}/cancel`, {
+      method: 'PUT',
+      body: JSON.stringify({ cancellationReason }),
+    });
+  }
+
   // Seller Customer Management APIs
   async getSellerCustomerAnalytics() {
     return await this.request('/seller/customers/analytics');
@@ -343,12 +369,49 @@ class ApiService {
   // Admin APIs
   async getAdminUsers(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    const endpoint = queryString ? `/admin/users?${queryString}` : '/admin/users';
+    const endpoint = queryString ? `/users?${queryString}` : '/users';
     return await this.request(endpoint);
   }
 
   async getBannedUsers() {
-    return await this.request('/admin/users/banned');
+    return await this.request('/users/banned');
+  }
+
+  async getUserById(userId) {
+    return await this.request(`/users/${userId}`);
+  }
+
+  async updateUser(userId, userData, avatarFile = null) {
+    if (avatarFile) {
+      const formData = new FormData();
+      Object.keys(userData).forEach(key => {
+        if (userData[key] !== undefined && userData[key] !== null) {
+          if (typeof userData[key] === 'object') {
+            formData.append(key, JSON.stringify(userData[key]));
+          } else {
+            formData.append(key, userData[key]);
+          }
+        }
+      });
+      formData.append('avatar', avatarFile);
+
+      return await this.request(`/users/${userId}`, {
+        method: 'PUT',
+        body: formData,
+        isFormData: true,
+      });
+    } else {
+      return await this.request(`/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(userData),
+      });
+    }
+  }
+
+  async deleteUser(userId) {
+    return await this.request(`/users/${userId}`, {
+      method: 'DELETE',
+    });
   }
 
   async getPendingBusinesses(params = {}) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import {
@@ -14,22 +14,62 @@ import {
   UserPlus,
   Download,
   Activity,
+  Loader,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
-import { users } from "../../data/users";
+import apiService from "../../utils/api";
 
 const ManageUsers = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [userStats, setUserStats] = useState({
+    total: 0,
+    activeToday: 0,
+  });
 
-  // Get all users including demo data
-  const allUsers = users;
+  // Fetch users from backend
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getAdminUsers({ search: searchQuery });
+      
+      if (response.success) {
+        // Filter only customer users as per the original logic
+        const customerUsers = response.data.users.filter(user => user.userType === 'customer');
+        setAllUsers(customerUsers);
+        
+        // Calculate stats
+        setUserStats({
+          total: customerUsers.length,
+          activeToday: Math.floor(customerUsers.filter(u => u.isActive).length * 0.3), // Approximate active today
+        });
+      } else {
+        setError('Failed to load users');
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError(err.message || 'Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter users based on search query
   const filteredUsers = allUsers.filter((user) => {
-    // Only show customer users in the user management section
-    if (user.type !== "customer") return false;
-
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -37,9 +77,63 @@ const ManageUsers = ({ onBack }) => {
     return matchesSearch;
   });
 
-  const handleUserAction = (userId, action) => {
-    console.log(`${action} user:`, userId);
-    // In real app, this would make API calls
+  // Refetch when search query changes
+  useEffect(() => {
+    if (searchQuery.length > 2 || searchQuery.length === 0) {
+      const timeoutId = setTimeout(() => {
+        fetchUsers();
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchQuery]);
+
+  const handleUserAction = async (userId, action) => {
+    try {
+      setActionLoading(true);
+      let response;
+      
+      switch (action) {
+        case 'edit':
+          // For now, just log - could open edit modal
+          console.log('Edit user:', userId);
+          break;
+        case 'suspend':
+        case 'ban':
+          const shouldBan = confirm('Are you sure you want to ban this user?');
+          if (shouldBan) {
+            response = await apiService.banUser(userId, true);
+            if (response.success) {
+              await fetchUsers(); // Refresh the list
+              alert('User banned successfully');
+            }
+          }
+          break;
+        case 'unban':
+          response = await apiService.banUser(userId, false);
+          if (response.success) {
+            await fetchUsers(); // Refresh the list
+            alert('User unbanned successfully');
+          }
+          break;
+        case 'delete':
+          const shouldDelete = confirm('Are you sure you want to delete this user? This action cannot be undone.');
+          if (shouldDelete) {
+            response = await apiService.deleteUser(userId);
+            if (response.success) {
+              await fetchUsers(); // Refresh the list
+              alert('User deleted successfully');
+            }
+          }
+          break;
+        default:
+          console.log(`${action} user:`, userId);
+      }
+    } catch (error) {
+      console.error('User action error:', error);
+      alert('Failed to perform action: ' + error.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const toggleUserSelection = (userId) => {
@@ -88,55 +182,81 @@ const ManageUsers = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-              <Card className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-lg bg-blue-100">
-                    <Users className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">
-                      Total Users
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {allUsers.filter((u) => u.type === "customer").length}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
+          {/* Loading State */}
+          {loading && (
+            <Card className="p-12 text-center mb-8">
+              <Loader className="w-8 h-8 text-primary-600 mx-auto mb-4 animate-spin" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Loading users...
+              </h3>
+              <p className="text-gray-600">
+                Please wait while we fetch the user data.
+              </p>
+            </Card>
+          )}
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <Card className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-lg bg-orange-100">
-                    <Activity className="w-6 h-6 text-orange-600" />
+          {/* Error State */}
+          {error && (
+            <Card className="p-12 text-center mb-8">
+              <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Error Loading Users
+              </h3>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button onClick={fetchUsers} variant="primary">
+                Try Again
+              </Button>
+            </Card>
+          )}
+
+          {/* Stats Cards */}
+          {!loading && !error && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
+                <Card className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-lg bg-blue-100">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Total Users
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {userStats.total}
+                      </p>
+                    </div>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">
-                      Active Today
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Math.floor(
-                        allUsers.filter((u) => u.type === "customer").length *
-                          0.3
-                      )}
-                    </p>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <Card className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-lg bg-orange-100">
+                      <Activity className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Active Today
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {userStats.activeToday}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            </motion.div>
-          </div>
+                </Card>
+              </motion.div>
+            </div>
+          )}
 
           {/* Search */}
           <Card className="p-6 mb-8">
