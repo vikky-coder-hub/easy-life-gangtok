@@ -314,7 +314,7 @@ const PendingBusinesses = ({ onBack }) => {
               <Button
                 variant="outline"
                 icon={X}
-                onClick={() => handleAction(selectedBusiness.id, "reject")}
+                onClick={() => handleAction(selectedBusiness._id, "reject")}
                 className="text-red-600 border-red-300 hover:bg-red-50"
               >
                 Reject
@@ -323,7 +323,7 @@ const PendingBusinesses = ({ onBack }) => {
                 variant="outline"
                 icon={Clock}
                 onClick={() =>
-                  handleAction(selectedBusiness.id, "under_review")
+                  handleAction(selectedBusiness._id, "under_review")
                 }
                 className="text-blue-600 border-blue-300 hover:bg-blue-50"
               >
@@ -332,7 +332,7 @@ const PendingBusinesses = ({ onBack }) => {
               <Button
                 variant="primary"
                 icon={CheckCircle}
-                onClick={() => handleAction(selectedBusiness.id, "approve")}
+                onClick={() => handleAction(selectedBusiness._id, "approve")}
               >
                 Approve Business
               </Button>
@@ -456,7 +456,7 @@ const PendingBusinesses = ({ onBack }) => {
                 ) : (
                   filteredBusinesses.map((business) => (
                     <motion.div
-                      key={business.id}
+                      key={business._id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"

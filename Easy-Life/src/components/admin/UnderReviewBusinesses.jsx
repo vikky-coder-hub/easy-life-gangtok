@@ -348,7 +348,7 @@ const UnderReviewBusinesses = ({ onBack }) => {
                 variant="outline"
                 icon={ArrowLeft}
                 onClick={() =>
-                  handleAction(selectedBusiness.id, "back_to_pending")
+                  handleAction(selectedBusiness._id, "back_to_pending")
                 }
                 className="text-gray-600 border-gray-300 hover:bg-gray-50"
               >
@@ -357,7 +357,7 @@ const UnderReviewBusinesses = ({ onBack }) => {
               <Button
                 variant="outline"
                 icon={X}
-                onClick={() => handleAction(selectedBusiness.id, "reject")}
+                onClick={() => handleAction(selectedBusiness._id, "reject")}
                 className="text-red-600 border-red-300 hover:bg-red-50"
               >
                 Reject
@@ -365,7 +365,7 @@ const UnderReviewBusinesses = ({ onBack }) => {
               <Button
                 variant="primary"
                 icon={CheckCircle}
-                onClick={() => handleAction(selectedBusiness.id, "approve")}
+                onClick={() => handleAction(selectedBusiness._id, "approve")}
               >
                 Approve Business
               </Button>
@@ -490,7 +490,7 @@ const UnderReviewBusinesses = ({ onBack }) => {
                 ) : (
                   filteredBusinesses.map((business) => (
                     <motion.div
-                      key={business.id}
+                      key={business._id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="border border-blue-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"

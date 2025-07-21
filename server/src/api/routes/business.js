@@ -22,5 +22,6 @@ router.put('/:id', authenticate, restrictTo('seller', 'admin'), multerMiddleware
 ]), validateBusiness, businessController.update);
 router.put('/:id/approve', authenticate, restrictTo('admin'), businessController.approve);
 router.put('/:id/reject', authenticate, restrictTo('admin'), businessController.reject);
+router.put('/:id/status', authenticate, restrictTo('admin'), validateBusiness, businessController.updateStatus);
 
 export { router as default, router as businessRouter };

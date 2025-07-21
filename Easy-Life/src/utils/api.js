@@ -458,31 +458,28 @@ class ApiService {
   }
 
   async banBusiness(id, reason = '') {
-    return await this.request(`/businesses/${id}`, {
+    return await this.request(`/businesses/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ 
-        listingStatus: 'banned',
-        banReason: reason 
+        status: 'banned'
       }),
     });
   }
 
   async tempBanBusiness(id, reason = '') {
-    return await this.request(`/businesses/${id}`, {
+    return await this.request(`/businesses/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ 
-        listingStatus: 'temp_banned',
-        banReason: reason 
+        status: 'banned'
       }),
     });
   }
 
   async unbanBusiness(id) {
-    return await this.request(`/businesses/${id}`, {
+    return await this.request(`/businesses/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ 
-        listingStatus: 'active',
-        banReason: null 
+        status: 'approved'
       }),
     });
   }

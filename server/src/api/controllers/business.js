@@ -149,4 +149,18 @@ export const businessController = {
       next(error);
     }
   },
+
+  async updateStatus(req, res, next) {
+    try {
+      const { status } = req.body;
+      const business = await BusinessService.updateStatus(req.params.id, status, req.user);
+      sendResponse(res, 200, {
+        success: true,
+        message: `Business status updated to ${status} successfully`,
+        data: business,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

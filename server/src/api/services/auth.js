@@ -278,4 +278,19 @@ export const AuthService = {
       updatedAt: user.updatedAt,
     };
   },
+
+  async logout(userId) {
+    // For JWT-based authentication, logout is typically handled client-side
+    // by removing the token. However, we can update the user's lastLogin time
+    // or perform any cleanup operations here if needed.
+    
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+    
+    // Update last activity or perform any logout-specific operations
+    user.lastLogin = new Date();
+    await user.save();
+    
+    return { message: 'Logged out successfully' };
+  },
 };

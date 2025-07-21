@@ -41,14 +41,30 @@ const ListedBusinesses = ({ onBack }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getAllBusinesses({ status: 'approved' });
+      // Fetch both approved and banned businesses for the listed businesses section
+      const [approvedResponse, bannedResponse] = await Promise.all([
+        apiService.getAllBusinesses({ status: 'approved' }),
+        apiService.getAllBusinesses({ status: 'banned' })
+      ]);
       
-      if (response.success) {
-        // Add demo listing status for businesses since this field might not exist in backend yet
-        const businessesWithListingStatus = (response.data.businesses || []).map((business, index) => ({
+      if (approvedResponse.success && bannedResponse.success) {
+        // Combine approved and banned businesses
+        const approvedBusinesses = approvedResponse.data.businesses || [];
+        const bannedBusinesses = bannedResponse.data.businesses || [];
+        const allBusinesses = [...approvedBusinesses, ...bannedBusinesses];
+        
+        console.log('Fetched businesses:', {
+          approved: approvedBusinesses.length,
+          banned: bannedBusinesses.length,
+          total: allBusinesses.length,
+          businesses: allBusinesses.map(b => ({ id: b._id, name: b.name, status: b.status }))
+        });
+        
+        // Map backend status to listingStatus for UI consistency
+        const businessesWithListingStatus = allBusinesses.map((business) => ({
           ...business,
-          listingStatus: index % 4 === 0 ? "banned" : index % 5 === 0 ? "temp_banned" : "active",
-          banReason: index % 4 === 0 ? "Policy violation reported" : index % 5 === 0 ? "Temporary suspension for verification" : null,
+          listingStatus: business.status === 'banned' ? 'banned' : 'active',
+          banReason: business.status === 'banned' ? 'Business has been banned by admin' : null,
         }));
         setListedBusinesses(businessesWithListingStatus);
       } else {
@@ -101,6 +117,17 @@ const ListedBusinesses = ({ onBack }) => {
         alert(message);
         // Refresh the listed businesses list to reflect the changes
         await fetchListedBusinesses();
+        
+        // Update selectedBusiness if it's the same business that was acted upon
+        if (selectedBusiness && selectedBusiness._id === businessId) {
+          const updatedBusiness = {
+            ...selectedBusiness,
+            status: action === 'unban' ? 'approved' : 'banned',
+            listingStatus: action === 'unban' ? 'active' : 'banned',
+            banReason: action === 'unban' ? null : (reason || 'Business has been banned by admin')
+          };
+          setSelectedBusiness(updatedBusiness);
+        }
       } else {
         alert("Failed to perform action. Please try again.");
       }
@@ -386,7 +413,7 @@ const ListedBusinesses = ({ onBack }) => {
                             const reason = prompt("Reason for temporary ban:");
                             if (reason)
                               handleBusinessAction(
-                                selectedBusiness.id,
+                                selectedBusiness._id,
                                 "temp_ban",
                                 reason
                               );
@@ -402,7 +429,7 @@ const ListedBusinesses = ({ onBack }) => {
                             const reason = prompt("Reason for ban:");
                             if (reason)
                               handleBusinessAction(
-                                selectedBusiness.id,
+                                selectedBusiness._id,
                                 "ban",
                                 reason
                               );
@@ -420,7 +447,7 @@ const ListedBusinesses = ({ onBack }) => {
                         className="w-full justify-start"
                         icon={Shield}
                         onClick={() =>
-                          handleBusinessAction(selectedBusiness.id, "unban")
+                          handleBusinessAction(selectedBusiness._id, "unban")
                         }
                       >
                         Unban Business
@@ -587,7 +614,7 @@ const ListedBusinesses = ({ onBack }) => {
                 ) : (
                   filteredBusinesses.map((business) => (
                     <motion.div
-                      key={business.id}
+                      key={business._id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"
