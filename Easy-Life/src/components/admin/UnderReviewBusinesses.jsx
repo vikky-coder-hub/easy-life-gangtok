@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Store,
@@ -13,73 +13,89 @@ import {
   Calendar,
   User,
   FileText,
+  Loader,
+  AlertTriangle,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
-import { businesses } from "../../data/businesses";
+import apiService from "../../utils/api";
 
 const UnderReviewBusinesses = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [underReviewBusinesses, setUnderReviewBusinesses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Add status to businesses for demo - only show under review ones
-  const businessesWithStatus = businesses.map((business, index) => ({
-    ...business,
-    status: index < 3 ? "pending" : index < 6 ? "under_review" : "approved",
-    submittedDate: new Date(
-      Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString(),
-    reviewStartDate: new Date(
-      Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString(),
-    documents: [
-      "Business License",
-      "Tax Registration",
-      "Identity Proof",
-      "Address Proof",
-    ],
-  }));
+  // Fetch under review businesses from backend
+  useEffect(() => {
+    fetchUnderReviewBusinesses();
+  }, []);
 
-  // Only show under review businesses
-  const underReviewBusinesses = businessesWithStatus.filter(
-    (business) => business.status === "under_review"
-  );
+  const fetchUnderReviewBusinesses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getAllBusinesses({ status: 'under_review' });
+      
+      if (response.success) {
+        setUnderReviewBusinesses(response.data.businesses || []);
+      } else {
+        setError('Failed to load under review businesses');
+      }
+    } catch (err) {
+      console.error('Error fetching under review businesses:', err);
+      setError(err.message || 'Failed to load under review businesses');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredBusinesses = underReviewBusinesses.filter((business) => {
+    const businessName = business.title || business.name || '';
+    const businessCategory = business.subcategory || business.category || '';
     const matchesSearch =
-      business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      business.subcategory.toLowerCase().includes(searchQuery.toLowerCase());
+      businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      businessCategory.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
-  const handleAction = (businessId, action) => {
-    console.log(`${action} business with ID: ${businessId}`);
-    // In a real app, this would make an API call to update the business status
-    // For demo purposes, we'll just log the action
+  const handleAction = async (businessId, action) => {
+    try {
+      let response;
+      let message = "";
 
-    // Provide user feedback based on action
-    let message = "";
-    switch (action) {
-      case "approve":
-        message = "Business has been approved and is now live on the platform";
-        break;
-      case "reject":
-        message = "Business application has been rejected";
-        break;
-      case "back_to_pending":
-        message =
-          "Business has been moved back to pending status for re-evaluation";
-        break;
-      default:
-        message = "Action completed";
+      switch (action) {
+        case "approve":
+          response = await apiService.approveBusiness(businessId);
+          message = "Business has been approved and is now live on the platform";
+          break;
+        case "reject":
+          response = await apiService.rejectBusiness(businessId);
+          message = "Business application has been rejected";
+          break;
+        case "back_to_pending":
+          response = await apiService.updateBusinessStatus(businessId, 'pending');
+          message = "Business has been moved back to pending status for re-evaluation";
+          break;
+        default:
+          message = "Action completed";
+      }
+
+      if (response && response.success) {
+        alert(message);
+        // Refresh the under review businesses list
+        await fetchUnderReviewBusinesses();
+        // Close the detail view
+        setSelectedBusiness(null);
+      } else {
+        alert("Failed to perform action. Please try again.");
+      }
+    } catch (error) {
+      console.error('Error performing action:', error);
+      alert("An error occurred. Please try again.");
     }
-
-    // In a real app, you would show a toast notification here
-    alert(message);
-
-    // After any action, the business would be moved to the appropriate section
-    // and would no longer appear in the under review list
   };
 
   const getStatusColor = (status) => {
@@ -441,7 +457,25 @@ const UnderReviewBusinesses = ({ onBack }) => {
 
               {/* Results */}
               <div className="space-y-4">
-                {filteredBusinesses.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <Loader className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Loading businesses under review...
+                    </h3>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Error loading businesses
+                    </h3>
+                    <p className="text-gray-500 mb-4">{error}</p>
+                    <Button onClick={fetchUnderReviewBusinesses} variant="outline">
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredBusinesses.length === 0 ? (
                   <div className="text-center py-12">
                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -465,7 +499,7 @@ const UnderReviewBusinesses = ({ onBack }) => {
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">
-                              {business.name}
+                              {business.title || business.name || 'Unnamed Business'}
                             </h3>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
@@ -482,29 +516,29 @@ const UnderReviewBusinesses = ({ onBack }) => {
                             <div className="flex items-center space-x-2">
                               <MapPin className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.location}
+                                {business.location?.address || business.location?.city || 'Location not specified'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                Submitted: {business.submittedDate}
+                                Submitted: {business.submittedDate ? new Date(business.submittedDate).toLocaleDateString() : new Date(business.createdAt).toLocaleDateString()}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Clock className="w-4 h-4 text-blue-500" />
                               <span
                                 className={`${getPriorityColor(
-                                  business.reviewStartDate
+                                  business.reviewStartDate || business.updatedAt
                                 )} font-medium`}
                               >
-                                Review started: {business.reviewStartDate}
+                                Review started: {business.reviewStartDate ? new Date(business.reviewStartDate).toLocaleDateString() : new Date(business.updatedAt).toLocaleDateString()}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Phone className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.phone}
+                                {business.contact?.phone || 'Phone not provided'}
                               </span>
                             </div>
                           </div>

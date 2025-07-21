@@ -97,4 +97,21 @@ export const analyticsController = {
       next(error);
     }
   },
+
+  async getAdminCustomerAnalytics(req, res, next) {
+    try {
+      const { period = 'last30days', page = 1, limit = 10 } = req.query;
+      const analytics = await AnalyticsService.getAdminCustomerAnalytics(
+        period, 
+        parseInt(page), 
+        parseInt(limit)
+      );
+      sendResponse(res, 200, {
+        success: true,
+        data: analytics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

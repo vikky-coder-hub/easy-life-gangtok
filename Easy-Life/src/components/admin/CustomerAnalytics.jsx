@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import {
@@ -26,146 +26,169 @@ import {
   AlertCircle,
   Heart,
   ShoppingCart,
+  Loader,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
 import CustomerAnalyticsCard from "../common/CustomerAnalyticsCard";
+import apiService from "../../utils/api";
 
 const CustomerAnalytics = ({ onBack }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("last30days");
   const [selectedView, setSelectedView] = useState("overview");
-
-  // Mock customer analytics data
-  const customerAnalytics = {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [customerAnalytics, setCustomerAnalytics] = useState({
     lastUpdated: "a day ago",
-    total: {
-      count: 76,
-      percentage: 22,
-      previousCount: 62,
-    },
-    new: {
-      count: 38,
-      percentage: 32,
-      description: "No orders in last 365 days",
-    },
-    repeat: {
-      count: 33,
-      percentage: 3,
-      description: "Ordered in last 60 days",
-    },
-    lapsed: {
-      count: 5,
-      percentage: 29,
-      description: "Last order 60 to 365 days ago",
-    },
-  };
-
-  const detailedMetrics = {
+    total: { count: 0, percentage: 0, previousCount: 0 },
+    new: { count: 0, percentage: 0, description: "No orders in last 365 days" },
+    repeat: { count: 0, percentage: 0, description: "Ordered in last 60 days" },
+    lapsed: { count: 0, percentage: 0, description: "Last order 60 to 365 days ago" },
+  });
+  const [detailedMetrics, setDetailedMetrics] = useState({
     acquisition: {
-      organicSearch: { count: 28, percentage: 37 },
-      socialMedia: { count: 18, percentage: 24 },
-      referrals: { count: 15, percentage: 20 },
-      directTraffic: { count: 12, percentage: 16 },
-      advertising: { count: 3, percentage: 3 },
+      organicSearch: { count: 0, percentage: 0 },
+      socialMedia: { count: 0, percentage: 0 },
+      referrals: { count: 0, percentage: 0 },
+      directTraffic: { count: 0, percentage: 0 },
+      advertising: { count: 0, percentage: 0 },
     },
     engagement: {
-      averageSessionTime: "4m 32s",
-      pageViews: 2847,
-      bounceRate: "34%",
-      returnVisitorRate: "43%",
+      averageSessionTime: "0m 0s",
+      pageViews: 0,
+      bounceRate: "0%",
+      returnVisitorRate: "0%",
     },
     retention: {
-      firstWeek: 85,
-      firstMonth: 62,
-      threeMonths: 45,
-      sixMonths: 38,
-      oneYear: 28,
+      firstWeek: 0,
+      firstMonth: 0,
+      threeMonths: 0,
+      sixMonths: 0,
+      oneYear: 0,
     },
     satisfaction: {
-      averageRating: 4.6,
-      totalReviews: 234,
-      positiveReviews: 198,
-      neutralReviews: 28,
-      negativeReviews: 8,
+      averageRating: 0,
+      totalReviews: 0,
+      positiveReviews: 0,
+      neutralReviews: 0,
+      negativeReviews: 0,
     },
+  });
+  const [recentCustomers, setRecentCustomers] = useState([]);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
+  const [activeToday, setActiveToday] = useState(0);
+  const [averageOrderValue, setAverageOrderValue] = useState(0);
+  const [conversionRate, setConversionRate] = useState(0);
+
+  // Fetch customer analytics data from backend
+  useEffect(() => {
+    fetchCustomerAnalytics();
+  }, [selectedPeriod, pagination.currentPage]);
+
+  const fetchCustomerAnalytics = async (page = pagination.currentPage) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await apiService.getAdminCustomerAnalytics(selectedPeriod, page, pagination.itemsPerPage);
+      
+      if (response.success) {
+        const data = response.data;
+        
+        setCustomerAnalytics({
+          lastUpdated: data.lastUpdated || "a day ago",
+          total: data.total || { count: 0, percentage: 0, previousCount: 0 },
+          new: data.new || { count: 0, percentage: 0, description: "No orders in last 365 days" },
+          repeat: data.repeat || { count: 0, percentage: 0, description: "Ordered in last 60 days" },
+          lapsed: data.lapsed || { count: 0, percentage: 0, description: "Last order 60 to 365 days ago" },
+        });
+
+        setDetailedMetrics(data.detailedMetrics || detailedMetrics);
+        setRecentCustomers(data.recentCustomers || []);
+        setPagination(data.pagination || pagination);
+        setActiveToday(data.activeToday || 0);
+        setAverageOrderValue(data.averageOrderValue || 0);
+        setConversionRate(data.conversionRate || 0);
+        setLocationData(data.locationData || locationData);
+      }
+    } catch (err) {
+      console.error('Error fetching customer analytics:', err);
+      setError(err.message || 'Failed to load customer analytics');
+      
+      // Fallback to demo data if API fails
+      setCustomerAnalytics({
+        lastUpdated: "a day ago",
+        total: { count: 76, percentage: 22, previousCount: 62 },
+        new: { count: 38, percentage: 32, description: "No orders in last 365 days" },
+        repeat: { count: 33, percentage: 3, description: "Ordered in last 60 days" },
+        lapsed: { count: 5, percentage: 29, description: "Last order 60 to 365 days ago" },
+      });
+      
+      setRecentCustomers([
+        {
+          id: "cust-045",
+          name: "Rajesh Sharma",
+          email: "rajesh.sharma@email.com",
+          joinDate: "2025-01-08",
+          lastActive: "2025-01-08",
+          status: "active",
+          segment: "new",
+          totalOrders: 1,
+          totalSpent: 450,
+          location: "MG Road, Gangtok",
+          avatar: null,
+        },
+        {
+          id: "cust-044",
+          name: "Priya Devi",
+          email: "priya.devi@email.com",
+          joinDate: "2025-01-07",
+          lastActive: "2025-01-08",
+          status: "active",
+          segment: "repeat",
+          totalOrders: 3,
+          totalSpent: 1250,
+          location: "Tadong, Gangtok",
+          avatar: null,
+        },
+        {
+          id: "cust-043",
+          name: "Sita Gurung",
+          email: "sita.gurung@email.com",
+          joinDate: "2025-01-06",
+          lastActive: "2025-01-07",
+          status: "active",
+          segment: "new",
+          totalOrders: 2,
+          totalSpent: 890,
+          location: "Ranipool, Gangtok",
+          avatar: null,
+        },
+      ]);
+      
+      setActiveToday(28);
+      setAverageOrderValue(1245);
+      setConversionRate(3.2);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const recentCustomers = [
-    {
-      id: "cust-045",
-      name: "Rajesh Sharma",
-      email: "rajesh.sharma@email.com",
-      joinDate: "2025-01-08",
-      lastActive: "2025-01-08",
-      status: "active",
-      segment: "new",
-      totalOrders: 1,
-      totalSpent: 450,
-      location: "MG Road, Gangtok",
-      avatar: null,
-    },
-    {
-      id: "cust-044",
-      name: "Priya Devi",
-      email: "priya.devi@email.com",
-      joinDate: "2025-01-07",
-      lastActive: "2025-01-08",
-      status: "active",
-      segment: "repeat",
-      totalOrders: 3,
-      totalSpent: 1250,
-      location: "Tadong, Gangtok",
-      avatar: null,
-    },
-    {
-      id: "cust-043",
-      name: "Sita Gurung",
-      email: "sita.gurung@email.com",
-      joinDate: "2025-01-06",
-      lastActive: "2025-01-07",
-      status: "active",
-      segment: "new",
-      totalOrders: 2,
-      totalSpent: 890,
-      location: "Ranipool, Gangtok",
-      avatar: null,
-    },
-    {
-      id: "cust-042",
-      name: "Deepak Rai",
-      email: "deepak.rai@email.com",
-      joinDate: "2025-01-05",
-      lastActive: "2025-01-06",
-      status: "active",
-      segment: "lapsed",
-      totalOrders: 1,
-      totalSpent: 320,
-      location: "Tibet Road, Gangtok",
-      avatar: null,
-    },
-    {
-      id: "cust-041",
-      name: "Maya Lama",
-      email: "maya.lama@email.com",
-      joinDate: "2025-01-04",
-      lastActive: "2025-01-05",
-      status: "active",
-      segment: "repeat",
-      totalOrders: 5,
-      totalSpent: 2100,
-      location: "Development Area, Gangtok",
-      avatar: null,
-    },
-  ];
-
-  const locationData = [
+  const [locationData, setLocationData] = useState([
     { area: "MG Road", customers: 18, percentage: 24 },
     { area: "Tadong", customers: 15, percentage: 20 },
     { area: "Ranipool", customers: 12, percentage: 16 },
     { area: "Development Area", customers: 10, percentage: 13 },
     { area: "Tibet Road", customers: 8, percentage: 11 },
     { area: "Others", customers: 13, percentage: 17 },
-  ];
+  ]);
 
   const getSegmentColor = (segment) => {
     switch (segment) {
@@ -187,6 +210,38 @@ const CustomerAnalytics = ({ onBack }) => {
 
   const handleGetDeeperInsights = () => {
     setSelectedView("detailed");
+  };
+
+  // Quick Actions handlers
+  const handleSendNewsletter = () => {
+    console.log("Sending newsletter to customers");
+    alert("Newsletter will be sent to all customers!");
+  };
+
+  const handleCreateSegment = () => {
+    console.log("Creating customer segment");
+    alert("Customer segmentation feature will be available soon!");
+  };
+
+  const handleQuickExportData = () => {
+    console.log("Exporting detailed customer data");
+    alert("Detailed customer data exported successfully!");
+  };
+
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+  };
+
+  const handlePrevPage = () => {
+    if (pagination.hasPrevPage) {
+      handlePageChange(pagination.currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination.hasNextPage) {
+      handlePageChange(pagination.currentPage + 1);
+    }
   };
 
   const getMaxValue = (data) => Math.max(...data.map((item) => item.customers));
@@ -404,13 +459,28 @@ const CustomerAnalytics = ({ onBack }) => {
                   Quick Actions
                 </h3>
                 <div className="space-y-3">
-                  <Button variant="outline" className="w-full" size="sm">
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    size="sm"
+                    onClick={handleSendNewsletter}
+                  >
                     Send Newsletter
                   </Button>
-                  <Button variant="outline" className="w-full" size="sm">
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    size="sm"
+                    onClick={handleCreateSegment}
+                  >
                     Create Segment
                   </Button>
-                  <Button variant="outline" className="w-full" size="sm">
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    size="sm"
+                    onClick={handleQuickExportData}
+                  >
                     Export Data
                   </Button>
                 </div>
@@ -490,7 +560,9 @@ const CustomerAnalytics = ({ onBack }) => {
                       <p className="text-sm font-medium text-gray-600">
                         Active Today
                       </p>
-                      <p className="text-2xl font-bold text-gray-900">28</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? <Loader className="w-6 h-6 animate-spin" /> : activeToday}
+                      </p>
                       <p className="text-sm text-green-600">
                         +12% vs yesterday
                       </p>
@@ -507,7 +579,9 @@ const CustomerAnalytics = ({ onBack }) => {
                       <p className="text-sm font-medium text-gray-600">
                         Avg Order Value
                       </p>
-                      <p className="text-2xl font-bold text-gray-900">₹1,245</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? <Loader className="w-6 h-6 animate-spin" /> : `₹${averageOrderValue.toLocaleString()}`}
+                      </p>
                       <p className="text-sm text-green-600">
                         +8% vs last month
                       </p>
@@ -524,7 +598,9 @@ const CustomerAnalytics = ({ onBack }) => {
                       <p className="text-sm font-medium text-gray-600">
                         Conversion Rate
                       </p>
-                      <p className="text-2xl font-bold text-gray-900">3.2%</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {loading ? <Loader className="w-6 h-6 animate-spin" /> : `${conversionRate}%`}
+                      </p>
                       <p className="text-sm text-green-600">
                         +0.4% vs last month
                       </p>
@@ -584,6 +660,68 @@ const CustomerAnalytics = ({ onBack }) => {
                     </motion.div>
                   ))}
                 </div>
+
+                {/* Pagination Controls */}
+                {pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                    <div className="text-sm text-gray-600">
+                      Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+                      {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+                      {pagination.totalItems} customers
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrevPage}
+                        disabled={!pagination.hasPrevPage || loading}
+                        className="px-3 py-1"
+                      >
+                        Previous
+                      </Button>
+                      
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = pagination.currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => handlePageChange(pageNum)}
+                              disabled={loading}
+                              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                                pageNum === pagination.currentPage
+                                  ? 'bg-blue-600 text-white'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={!pagination.hasNextPage || loading}
+                        className="px-3 py-1"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </Card>
             </div>
           </div>

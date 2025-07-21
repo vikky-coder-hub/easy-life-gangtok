@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Store,
@@ -17,52 +17,57 @@ import {
   Calendar,
   Shield,
   ShieldOff,
+  Loader,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
-import { businesses } from "../../data/businesses";
+import apiService from "../../utils/api";
 
 const ListedBusinesses = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [listedBusinesses, setListedBusinesses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Add status to businesses for demo - only show approved/listed businesses
-  const businessesWithStatus = businesses.map((business, index) => ({
-    ...business,
-    status: index < 3 ? "pending" : index < 6 ? "under_review" : "approved",
-    listingStatus:
-      index % 4 === 0 ? "banned" : index % 5 === 0 ? "temp_banned" : "active", // Demo listing status
-    submittedDate: new Date(
-      Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString(),
-    approvedDate: new Date(
-      Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString(),
-    banReason:
-      index % 4 === 0
-        ? "Policy violation reported"
-        : index % 5 === 0
-        ? "Temporary suspension for verification"
-        : null,
-    documents: [
-      "Business License",
-      "Tax Registration",
-      "Identity Proof",
-      "Address Proof",
-    ],
-  }));
+  // Fetch listed businesses from backend
+  useEffect(() => {
+    fetchListedBusinesses();
+  }, []);
 
-  // Only show approved/listed businesses (exclude pending and under review)
-  const listedBusinesses = businessesWithStatus.filter(
-    (business) => business.status === "approved"
-  );
+  const fetchListedBusinesses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getAllBusinesses({ status: 'approved' });
+      
+      if (response.success) {
+        // Add demo listing status for businesses since this field might not exist in backend yet
+        const businessesWithListingStatus = (response.data.businesses || []).map((business, index) => ({
+          ...business,
+          listingStatus: index % 4 === 0 ? "banned" : index % 5 === 0 ? "temp_banned" : "active",
+          banReason: index % 4 === 0 ? "Policy violation reported" : index % 5 === 0 ? "Temporary suspension for verification" : null,
+        }));
+        setListedBusinesses(businessesWithListingStatus);
+      } else {
+        setError('Failed to load listed businesses');
+      }
+    } catch (err) {
+      console.error('Error fetching listed businesses:', err);
+      setError(err.message || 'Failed to load listed businesses');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredBusinesses = listedBusinesses.filter((business) => {
+    const businessName = business.title || business.name || '';
+    const businessCategory = business.subcategory || business.category || '';
     const matchesSearch =
-      business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      business.subcategory.toLowerCase().includes(searchQuery.toLowerCase());
+      businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      businessCategory.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesFilter =
       filterStatus === "all" || business.listingStatus === filterStatus;
@@ -70,30 +75,39 @@ const ListedBusinesses = ({ onBack }) => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleBusinessAction = (businessId, action, reason = "") => {
-    console.log(
-      `${action} business with ID: ${businessId}`,
-      reason ? `Reason: ${reason}` : ""
-    );
-    // In a real app, this would make an API call to update the business listing status
+  const handleBusinessAction = async (businessId, action, reason = "") => {
+    try {
+      let response;
+      let message = "";
 
-    let message = "";
-    switch (action) {
-      case "ban":
-        message = "Business has been banned and removed from listings";
-        break;
-      case "temp_ban":
-        message = "Business has been temporarily banned for review";
-        break;
-      case "unban":
-        message = "Business has been unbanned and restored to listings";
-        break;
-      default:
-        message = "Action completed";
+      switch (action) {
+        case "ban":
+          response = await apiService.banBusiness(businessId, reason);
+          message = "Business has been banned and removed from listings";
+          break;
+        case "temp_ban":
+          response = await apiService.tempBanBusiness(businessId, reason);
+          message = "Business has been temporarily banned for review";
+          break;
+        case "unban":
+          response = await apiService.unbanBusiness(businessId);
+          message = "Business has been unbanned and restored to listings";
+          break;
+        default:
+          message = "Action completed";
+      }
+
+      if (response && response.success) {
+        alert(message);
+        // Refresh the listed businesses list to reflect the changes
+        await fetchListedBusinesses();
+      } else {
+        alert("Failed to perform action. Please try again.");
+      }
+    } catch (error) {
+      console.error('Error performing business action:', error);
+      alert(`An error occurred: ${error.message}`);
     }
-
-    alert(message);
-    // In real app, this would update the business status and refresh the list
   };
 
   const getListingStatusColor = (status) => {
@@ -540,7 +554,25 @@ const ListedBusinesses = ({ onBack }) => {
 
               {/* Results */}
               <div className="space-y-4">
-                {filteredBusinesses.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <Loader className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Loading listed businesses...
+                    </h3>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Error loading businesses
+                    </h3>
+                    <p className="text-gray-500 mb-4">{error}</p>
+                    <Button onClick={fetchListedBusinesses} variant="outline">
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredBusinesses.length === 0 ? (
                   <div className="text-center py-12">
                     <Store className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -564,7 +596,7 @@ const ListedBusinesses = ({ onBack }) => {
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">
-                              {business.name}
+                              {business.title || business.name || 'Unnamed Business'}
                             </h3>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${getListingStatusColor(
@@ -584,26 +616,25 @@ const ListedBusinesses = ({ onBack }) => {
                             <div className="flex items-center space-x-2">
                               <MapPin className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.location}
+                                {business.location?.address || business.location?.city || 'Location not specified'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Phone className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.phone}
+                                {business.contact?.phone || 'Phone not provided'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <CheckCircle className="w-4 h-4 text-green-500" />
                               <span className="text-gray-600">
-                                Rating: {business.rating} (
-                                {business.reviewCount} reviews)
+                                Rating: {business.rating || 'N/A'} ({business.reviewCount || 0} reviews)
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                Approved: {business.approvedDate}
+                                Approved: {business.approvalDate ? new Date(business.approvalDate).toLocaleDateString() : new Date(business.updatedAt).toLocaleDateString()}
                               </span>
                             </div>
                           </div>

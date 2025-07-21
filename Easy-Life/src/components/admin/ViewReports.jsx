@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -11,54 +11,130 @@ import {
   Calendar,
   ArrowLeft,
   Filter,
+  Loader,
+  AlertCircle,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
+import apiService from "../../utils/api";
 
 const ViewReports = ({ onBack }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("last30days");
   const [selectedReport, setSelectedReport] = useState("overview");
-
-  // Demo data for reports
-  const reportData = {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reportData, setReportData] = useState({
     overview: {
-      totalUsers: 1234,
-      totalBusinesses: 156,
-      totalRevenue: 45670,
-      pageViews: 89542,
-      userGrowth: 12.5,
-      businessGrowth: 8.3,
-      revenueGrowth: 15.7,
-      viewsGrowth: 23.1,
+      totalUsers: 0,
+      totalBusinesses: 0,
+      totalRevenue: 0,
+      pageViews: 0,
+      userGrowth: 0,
+      businessGrowth: 0,
+      revenueGrowth: 0,
+      viewsGrowth: 0,
     },
-    userActivity: [
-      { date: "2024-01-01", users: 45, businesses: 12 },
-      { date: "2024-01-02", users: 52, businesses: 15 },
-      { date: "2024-01-03", users: 48, businesses: 18 },
-      { date: "2024-01-04", users: 61, businesses: 14 },
-      { date: "2024-01-05", users: 55, businesses: 16 },
-      { date: "2024-01-06", users: 67, businesses: 19 },
-      { date: "2024-01-07", users: 72, businesses: 22 },
-    ],
-    topBusinesses: [
-      { name: "Gangtok Coffee House", views: 1234, rating: 4.8, bookings: 89 },
-      {
-        name: "Mountain View Restaurant",
-        views: 987,
-        rating: 4.7,
-        bookings: 76,
-      },
-      { name: "Tech Repair Center", views: 765, rating: 4.9, bookings: 54 },
-      { name: "Himalayan Spa", views: 654, rating: 4.6, bookings: 43 },
-      { name: "Local Grocery Store", views: 543, rating: 4.5, bookings: 32 },
-    ],
-    categories: [
-      { name: "Restaurants", count: 45, percentage: 28.8 },
-      { name: "Technology", count: 32, percentage: 20.5 },
-      { name: "Health & Wellness", count: 28, percentage: 17.9 },
-      { name: "Shopping", count: 25, percentage: 16.0 },
-      { name: "Services", count: 26, percentage: 16.7 },
-    ],
+    userActivity: [],
+    topBusinesses: [],
+    categories: [],
+  });
+  const [financialData, setFinancialData] = useState(null);
+  const [userActivityData, setUserActivityData] = useState(null);
+
+  // Fetch analytics data from backend
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [selectedPeriod]);
+
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch platform analytics for overview
+      const platformResponse = await apiService.getPlatformAnalytics(selectedPeriod);
+      
+      if (platformResponse.success) {
+        const data = platformResponse.data;
+        
+        // Update report data with real backend data
+        setReportData({
+          overview: {
+            totalUsers: data.overview?.totalUsers || 0,
+            totalBusinesses: data.overview?.totalBusinesses || 0,
+            totalRevenue: data.overview?.totalRevenue || 0,
+            pageViews: data.overview?.pageViews || 0,
+            userGrowth: data.overview?.userGrowth || 0,
+            businessGrowth: data.overview?.businessGrowth || 0,
+            revenueGrowth: data.overview?.revenueGrowth || 0,
+            viewsGrowth: data.overview?.viewsGrowth || 0,
+          },
+          userActivity: data.userActivity || [],
+          topBusinesses: data.topBusinesses || [],
+          categories: data.categories || [],
+        });
+      }
+
+      // Fetch financial reports
+      const financialResponse = await apiService.getFinancialReports(selectedPeriod);
+      if (financialResponse.success) {
+        setFinancialData(financialResponse.data);
+      }
+
+      // Fetch user activity reports
+      const userActivityResponse = await apiService.getUserActivityReports(selectedPeriod);
+      if (userActivityResponse.success) {
+        setUserActivityData(userActivityResponse.data);
+      }
+
+    } catch (err) {
+      console.error('Error fetching analytics data:', err);
+      setError(err.message || 'Failed to load analytics data');
+      
+      // Fallback to demo data if API fails
+      setReportData({
+        overview: {
+          totalUsers: 1234,
+          totalBusinesses: 156,
+          totalRevenue: 45670,
+          pageViews: 89542,
+          userGrowth: 12.5,
+          businessGrowth: 8.3,
+          revenueGrowth: 15.7,
+          viewsGrowth: 23.1,
+        },
+        userActivity: [
+          { date: "2024-01-01", users: 45, businesses: 12 },
+          { date: "2024-01-02", users: 52, businesses: 15 },
+          { date: "2024-01-03", users: 48, businesses: 18 },
+          { date: "2024-01-04", users: 61, businesses: 14 },
+          { date: "2024-01-05", users: 55, businesses: 16 },
+          { date: "2024-01-06", users: 67, businesses: 19 },
+          { date: "2024-01-07", users: 72, businesses: 22 },
+        ],
+        topBusinesses: [
+          { name: "Gangtok Coffee House", views: 1234, rating: 4.8, bookings: 89 },
+          {
+            name: "Mountain View Restaurant",
+            views: 987,
+            rating: 4.7,
+            bookings: 76,
+          },
+          { name: "Tech Repair Center", views: 765, rating: 4.9, bookings: 54 },
+          { name: "Himalayan Spa", views: 654, rating: 4.6, bookings: 43 },
+          { name: "Local Grocery Store", views: 543, rating: 4.5, bookings: 32 },
+        ],
+        categories: [
+          { name: "Restaurants", count: 45, percentage: 28.8 },
+          { name: "Technology", count: 32, percentage: 20.5 },
+          { name: "Health & Wellness", count: 28, percentage: 17.9 },
+          { name: "Shopping", count: 25, percentage: 16.0 },
+          { name: "Services", count: 26, percentage: 16.7 },
+        ],
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const StatCard = ({ title, value, change, icon: Icon, color }) => (
@@ -241,16 +317,16 @@ const ViewReports = ({ onBack }) => {
                     {business.name}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    {business.views.toLocaleString()}
+                    {(business.views || 0).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
                     <div className="flex items-center">
                       <span className="text-yellow-400 mr-1">★</span>
-                      {business.rating}
+                      {business.rating || 0}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    {business.bookings}
+                    {business.bookings || 0}
                   </td>
                 </tr>
               ))}
@@ -320,6 +396,71 @@ const ViewReports = ({ onBack }) => {
     }
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button onClick={onBack} variant="ghost" size="sm" icon={ArrowLeft}>
+              Back to Dashboard
+            </Button>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Analytics & Reports
+              </h2>
+              <p className="text-gray-600">
+                View detailed analytics and generate reports
+              </p>
+            </div>
+          </div>
+        </div>
+        <Card className="p-12 text-center">
+          <Loader className="w-8 h-8 text-primary-600 mx-auto mb-4 animate-spin" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Loading analytics data...
+          </h3>
+          <p className="text-gray-600">
+            Please wait while we fetch the latest analytics data.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button onClick={onBack} variant="ghost" size="sm" icon={ArrowLeft}>
+              Back to Dashboard
+            </Button>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Analytics & Reports
+              </h2>
+              <p className="text-gray-600">
+                View detailed analytics and generate reports
+              </p>
+            </div>
+          </div>
+        </div>
+        <Card className="p-12 text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Error Loading Analytics
+          </h3>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Button onClick={fetchAnalyticsData} variant="primary">
+            Try Again
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -342,13 +483,14 @@ const ViewReports = ({ onBack }) => {
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            disabled={loading}
           >
             <option value="last7days">Last 7 days</option>
             <option value="last30days">Last 30 days</option>
             <option value="last90days">Last 90 days</option>
             <option value="lastyear">Last year</option>
           </select>
-          <Button variant="primary" icon={Download}>
+          <Button variant="primary" icon={Download} disabled={loading}>
             Export Report
           </Button>
         </div>
@@ -366,11 +508,12 @@ const ViewReports = ({ onBack }) => {
                 <button
                   key={type.id}
                   onClick={() => setSelectedReport(type.id)}
+                  disabled={loading}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     selectedReport === type.id
                       ? "bg-primary-100 text-primary-700"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
+                  } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <type.icon className="w-4 h-4 mr-3" />
                   {type.name}

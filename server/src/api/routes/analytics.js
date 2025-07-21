@@ -15,5 +15,6 @@ router.get('/customer/:id', authenticate, restrictTo('admin'), validateAnalytics
 router.get('/platform', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getPlatformAnalytics);
 router.get('/reports/financial', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getFinancialReports);
 router.get('/reports/user-activity', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getUserActivityReports);
+router.get('/admin/customers', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getAdminCustomerAnalytics);
 
 export { router as default, router as analyticsRouter };

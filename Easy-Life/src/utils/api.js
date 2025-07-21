@@ -45,15 +45,51 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
+      
+      // Handle non-JSON responses (like HTML error pages)
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        if (response.status === 404) {
+          throw new Error('The requested resource was not found. Please try again later.');
+        }
+        if (response.status === 401) {
+          throw new Error('Authentication required. Please log in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('You do not have permission to perform this action.');
+        }
+        if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        }
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Request failed');
+        // Handle authentication errors
+        if (response.status === 401) {
+          this.setToken(null); // Clear invalid token
+          throw new Error('Authentication required. Please log in again.');
+        }
+        
+        // Handle authorization errors
+        if (response.status === 403) {
+          throw new Error('You do not have permission to perform this action.');
+        }
+        
+        throw new Error(data.error || data.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return data;
     } catch (error) {
       console.error('API Request Error:', error);
+      
+      // Provide user-friendly error messages for network issues
+      if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
+      
       throw error;
     }
   }
@@ -196,6 +232,31 @@ class ApiService {
 
   async getAdminDashboard() {
     return await this.request('/analytics/dashboard/admin');
+  }
+
+  // Analytics APIs
+  async getPlatformAnalytics(period = 'last30days') {
+    return await this.request(`/analytics/platform?period=${period}`);
+  }
+
+  async getFinancialReports(period = 'last30days') {
+    return await this.request(`/analytics/reports/financial?period=${period}`);
+  }
+
+  async getUserActivityReports(period = 'last30days') {
+    return await this.request(`/analytics/reports/user-activity?period=${period}`);
+  }
+
+  async getBusinessAnalytics(businessId, period = 'last30days') {
+    return await this.request(`/analytics/business/${businessId}?period=${period}`);
+  }
+
+  async getCustomerAnalytics(customerId, period = 'last30days') {
+    return await this.request(`/analytics/customer/${customerId}?period=${period}`);
+  }
+
+  async getAdminCustomerAnalytics(period = 'last30days', page = 1, limit = 10) {
+    return await this.request(`/analytics/admin/customers?period=${period}&page=${page}&limit=${limit}`);
   }
 
   // Customer Activity API
@@ -364,6 +425,66 @@ class ApiService {
     
     const url = queryString ? `/activity/customer/me?${queryString}` : '/activity/customer/me';
     return await this.request(url);
+  }
+
+  // Business Management APIs
+  async getAllBusinesses(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/businesses?${queryString}` : '/businesses';
+    return await this.request(endpoint);
+  }
+
+  async getBusinessById(id) {
+    return await this.request(`/businesses/${id}`);
+  }
+
+  async approveBusiness(id) {
+    return await this.request(`/businesses/${id}/approve`, {
+      method: 'PUT',
+    });
+  }
+
+  async rejectBusiness(id) {
+    return await this.request(`/businesses/${id}/reject`, {
+      method: 'PUT',
+    });
+  }
+
+  async updateBusinessStatus(id, status) {
+    return await this.request(`/businesses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async banBusiness(id, reason = '') {
+    return await this.request(`/businesses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ 
+        listingStatus: 'banned',
+        banReason: reason 
+      }),
+    });
+  }
+
+  async tempBanBusiness(id, reason = '') {
+    return await this.request(`/businesses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ 
+        listingStatus: 'temp_banned',
+        banReason: reason 
+      }),
+    });
+  }
+
+  async unbanBusiness(id) {
+    return await this.request(`/businesses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ 
+        listingStatus: 'active',
+        banReason: null 
+      }),
+    });
   }
 
   // Admin APIs

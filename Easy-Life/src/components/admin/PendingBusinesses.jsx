@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Store,
@@ -14,70 +14,88 @@ import {
   User,
   FileText,
   Clock,
+  Loader,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
-import { businesses } from "../../data/businesses";
+import apiService from "../../utils/api";
 
 const PendingBusinesses = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [pendingBusinesses, setPendingBusinesses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Add status to businesses for demo - only show pending ones
-  const businessesWithStatus = businesses.map((business, index) => ({
-    ...business,
-    status: index < 3 ? "pending" : index < 6 ? "under_review" : "approved",
-    submittedDate: new Date(
-      Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString(),
-    documents: [
-      "Business License",
-      "Tax Registration",
-      "Identity Proof",
-      "Address Proof",
-    ],
-  }));
+  // Fetch pending businesses from backend
+  useEffect(() => {
+    fetchPendingBusinesses();
+  }, []);
 
-  // Only show pending businesses
-  const pendingBusinesses = businessesWithStatus.filter(
-    (business) => business.status === "pending"
-  );
+  const fetchPendingBusinesses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getAllBusinesses({ status: 'pending' });
+      
+      if (response.success) {
+        setPendingBusinesses(response.data.businesses || []);
+      } else {
+        setError('Failed to load pending businesses');
+      }
+    } catch (err) {
+      console.error('Error fetching pending businesses:', err);
+      setError(err.message || 'Failed to load pending businesses');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredBusinesses = pendingBusinesses.filter((business) => {
+    const businessName = business.title || business.name || '';
+    const businessCategory = business.subcategory || business.category || '';
     const matchesSearch =
-      business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      business.subcategory.toLowerCase().includes(searchQuery.toLowerCase());
+      businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      businessCategory.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
-  const handleAction = (businessId, action) => {
-    console.log(`${action} business with ID: ${businessId}`);
-    // In a real app, this would make an API call to update the business status
-    // For demo purposes, we'll just log the action
+  const handleAction = async (businessId, action) => {
+    try {
+      let response;
+      let message = "";
 
-    // Provide user feedback based on action
-    let message = "";
-    switch (action) {
-      case "approve":
-        message = "Business has been approved and is now live on the platform";
-        break;
-      case "reject":
-        message = "Business application has been rejected";
-        break;
-      case "under_review":
-        message =
-          "Business has been marked as under review for further verification";
-        break;
-      default:
-        message = "Action completed";
+      switch (action) {
+        case "approve":
+          response = await apiService.approveBusiness(businessId);
+          message = "Business has been approved and is now live on the platform";
+          break;
+        case "reject":
+          response = await apiService.rejectBusiness(businessId);
+          message = "Business application has been rejected";
+          break;
+        case "under_review":
+          response = await apiService.updateBusinessStatus(businessId, 'under_review');
+          message = "Business has been marked as under review for further verification";
+          break;
+        default:
+          message = "Action completed";
+      }
+
+      if (response && response.success) {
+        alert(message);
+        // Refresh the pending businesses list
+        await fetchPendingBusinesses();
+        // Close the detail view
+        setSelectedBusiness(null);
+      } else {
+        alert("Failed to perform action. Please try again.");
+      }
+    } catch (error) {
+      console.error('Error performing action:', error);
+      alert("An error occurred. Please try again.");
     }
-
-    // In a real app, you would show a toast notification here
-    alert(message);
-
-    // After any action, the business would be moved to the appropriate section
-    // and would no longer appear in the pending list
   };
 
   const getStatusColor = (status) => {
@@ -405,7 +423,25 @@ const PendingBusinesses = ({ onBack }) => {
 
               {/* Results */}
               <div className="space-y-4">
-                {filteredBusinesses.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-12">
+                    <Loader className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Loading pending businesses...
+                    </h3>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Error loading businesses
+                    </h3>
+                    <p className="text-gray-500 mb-4">{error}</p>
+                    <Button onClick={fetchPendingBusinesses} variant="outline">
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredBusinesses.length === 0 ? (
                   <div className="text-center py-12">
                     <Store className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -429,7 +465,7 @@ const PendingBusinesses = ({ onBack }) => {
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">
-                              {business.name}
+                              {business.title || business.name || 'Unnamed Business'}
                             </h3>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
@@ -446,29 +482,29 @@ const PendingBusinesses = ({ onBack }) => {
                             <div className="flex items-center space-x-2">
                               <MapPin className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.location}
+                                {business.location?.address || business.location?.city || 'Location not specified'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span
                                 className={`${getPriorityColor(
-                                  business.submittedDate
+                                  business.submittedDate || business.createdAt
                                 )}`}
                               >
-                                Submitted: {business.submittedDate}
+                                Submitted: {business.submittedDate ? new Date(business.submittedDate).toLocaleDateString() : new Date(business.createdAt).toLocaleDateString()}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Store className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600 capitalize">
-                                {business.category} - {business.subcategory}
+                                {business.category}{business.subcategory ? ` - ${business.subcategory}` : ''}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Phone className="w-4 h-4 text-gray-400" />
                               <span className="text-gray-600">
-                                {business.phone}
+                                {business.contact?.phone || 'Phone not provided'}
                               </span>
                             </div>
                           </div>
