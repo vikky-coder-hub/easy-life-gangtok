@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import {
@@ -14,51 +14,66 @@ import {
   Activity,
   Ban,
   RotateCcw,
+  Loader,
+  AlertTriangle,
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
-import { users } from "../../data/users";
+import apiService from "../../utils/api";
 
 const BannedUsers = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [bannedUsers, setBannedUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Get all users including demo data and filter for banned users
-  const allUsers = users;
+  // Fetch banned users from API
+  useEffect(() => {
+    fetchBannedUsers();
+  }, []);
 
-  // Mock some banned users for demonstration
-  const bannedUsers = [
-    {
-      ...allUsers[0],
-      id: "banned_1",
-      name: "Raj Sharma",
-      email: "raj.banned@example.com",
-      status: "banned",
-      bannedDate: "15 Jun 2025",
-      bannedReason: "Inappropriate content posting",
-      type: "customer",
-    },
-    {
-      ...allUsers[1],
-      id: "banned_2",
-      name: "Maya Devi",
-      email: "maya.banned@example.com",
-      status: "banned",
-      bannedDate: "12 Jun 2025",
-      bannedReason: "Spam activities",
-      type: "customer",
-    },
-    {
-      ...allUsers[2],
-      id: "banned_3",
-      name: "Karma Lepcha",
-      email: "karma.banned@example.com",
-      status: "banned",
-      bannedDate: "10 Jun 2025",
-      bannedReason: "Terms of service violation",
-      type: "customer",
-    },
-  ];
+  const fetchBannedUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching banned users...');
+      const response = await apiService.getBannedUsers();
+      console.log('Banned users response:', response);
+      
+      if (response.success) {
+        // Transform the data to match the expected format
+        const transformedUsers = (response.data.users || []).map((user) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          avatar: user.profile?.avatar,
+          status: "banned",
+          bannedDate: user.updatedAt ? new Date(user.updatedAt).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }) : 'Unknown',
+          bannedReason: user.banReason || "Terms of service violation",
+          type: user.userType || "customer",
+          isBanned: user.isBanned,
+          isActive: user.isActive,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }));
+        console.log('Transformed banned users:', transformedUsers);
+        setBannedUsers(transformedUsers);
+      } else {
+        setError('Failed to load banned users');
+      }
+    } catch (err) {
+      console.error('Error fetching banned users:', err);
+      setError(err.message || 'Failed to load banned users');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = bannedUsers.filter((user) => {
     const matchesSearch =
@@ -69,12 +84,26 @@ const BannedUsers = ({ onBack }) => {
     return matchesSearch;
   });
 
-  const handleUserAction = (userId, action) => {
-    console.log(`${action} banned user:`, userId);
-    // In real app, this would make API calls
-    if (action === "unban") {
-      // Handle unban logic
-      alert(`User ${userId} will be unbanned`);
+  const handleUserAction = async (userId, action) => {
+    try {
+      if (action === "unban") {
+        const response = await apiService.banUser(userId, false);
+        if (response.success) {
+          alert('User has been unbanned successfully');
+          // Refresh the banned users list
+          await fetchBannedUsers();
+          // Remove from selected users if it was selected
+          setSelectedUsers(prev => prev.filter(id => id !== userId));
+        } else {
+          alert('Failed to unban user. Please try again.');
+        }
+      } else if (action === "view") {
+        // Handle view user details
+        console.log('View user details:', userId);
+      }
+    } catch (error) {
+      console.error('Error performing user action:', error);
+      alert(`An error occurred: ${error.message}`);
     }
   };
 
@@ -84,6 +113,40 @@ const BannedUsers = ({ onBack }) => {
         ? prev.filter((id) => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const handleBulkUnban = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    const confirmUnban = window.confirm(
+      `Are you sure you want to unban ${selectedUsers.length} user(s)?`
+    );
+    
+    if (!confirmUnban) return;
+
+    try {
+      // Unban all selected users
+      const promises = selectedUsers.map(userId => 
+        apiService.banUser(userId, false)
+      );
+      
+      const results = await Promise.all(promises);
+      const successful = results.filter(r => r.success).length;
+      const failed = results.length - successful;
+      
+      if (successful > 0) {
+        alert(`Successfully unbanned ${successful} user(s)${failed > 0 ? `, ${failed} failed` : ''}`);
+        // Refresh the banned users list
+        await fetchBannedUsers();
+        // Clear selected users
+        setSelectedUsers([]);
+      } else {
+        alert('Failed to unban users. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error bulk unbanning users:', error);
+      alert(`An error occurred: ${error.message}`);
+    }
   };
 
   return (
@@ -118,7 +181,11 @@ const BannedUsers = ({ onBack }) => {
                   Export
                 </Button>
                 {selectedUsers.length > 0 && (
-                  <Button variant="primary" icon={RotateCcw}>
+                  <Button 
+                    variant="primary" 
+                    icon={RotateCcw}
+                    onClick={handleBulkUnban}
+                  >
                     Bulk Unban ({selectedUsers.length})
                   </Button>
                 )}
@@ -223,7 +290,7 @@ const BannedUsers = ({ onBack }) => {
             <div className="px-6 py-5 border-b border-gray-200 bg-white">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Banned Users ({filteredUsers.length})
+                  Banned Users ({loading ? '...' : filteredUsers.length})
                 </h3>
                 {selectedUsers.length > 0 && (
                   <div className="flex items-center space-x-3">
@@ -238,8 +305,34 @@ const BannedUsers = ({ onBack }) => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-12">
+                <Loader className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Loading banned users...
+                </h3>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="text-center py-12">
+                <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Error loading banned users
+                </h3>
+                <p className="text-gray-500 mb-4">{error}</p>
+                <Button onClick={fetchBannedUsers} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Table Content - Only show when not loading and no error */}
+            {!loading && !error && (
+              <div className="overflow-x-auto">
+                <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -372,21 +465,22 @@ const BannedUsers = ({ onBack }) => {
                   ))}
                 </tbody>
               </table>
-            </div>
 
-            {/* Empty State */}
-            {filteredUsers.length === 0 && (
-              <div className="text-center py-12">
-                <Ban className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-sm font-medium text-gray-900 mb-2">
-                  No banned users found
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {searchQuery
-                    ? "Try adjusting your search criteria."
-                    : "No users have been banned yet."}
-                </p>
-              </div>
+              {/* Empty State */}
+              {filteredUsers.length === 0 && (
+                <div className="text-center py-12">
+                  <Ban className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    No banned users found
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {searchQuery
+                      ? "Try adjusting your search criteria."
+                      : "No users have been banned yet."}
+                  </p>
+                </div>
+              )}
+            </div>
             )}
           </Card>
         </div>
