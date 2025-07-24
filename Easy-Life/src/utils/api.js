@@ -247,6 +247,14 @@ class ApiService {
     return await this.request(`/analytics/reports/user-activity?period=${period}`);
   }
 
+  async getSellerFinancialAnalytics(period = 'last30days') {
+    return await this.request(`/analytics/seller/financial?period=${period}`);
+  }
+
+  async getSellerFinancialAnalytics(period = 'last30days') {
+    return await this.request(`/analytics/seller/financial?period=${period}`);
+  }
+
   async getBusinessAnalytics(businessId, period = 'last30days') {
     return await this.request(`/analytics/business/${businessId}?period=${period}`);
   }

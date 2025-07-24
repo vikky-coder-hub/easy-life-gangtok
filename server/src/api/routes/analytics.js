@@ -10,6 +10,9 @@ router.get('/dashboard/customer', authenticate, restrictTo('customer'), analytic
 router.get('/dashboard/seller', authenticate, restrictTo('seller'), analyticsController.getSellerDashboard);
 router.get('/dashboard/admin', authenticate, restrictTo('admin'), analyticsController.getAdminDashboard);
 
+// Seller-specific routes
+router.get('/seller/financial', authenticate, restrictTo('seller'), analyticsController.getSellerFinancialAnalytics);
+
 router.get('/business/:id', authenticate, restrictTo('admin', 'seller'), validateAnalytics, analyticsController.getBusinessAnalytics);
 router.get('/customer/:id', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getCustomerAnalytics);
 router.get('/platform', authenticate, restrictTo('admin'), validateAnalytics, analyticsController.getPlatformAnalytics);

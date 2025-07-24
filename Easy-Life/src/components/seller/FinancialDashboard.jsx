@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -14,109 +14,77 @@ import {
 } from "lucide-react";
 import Card from "../common/Card";
 import Button from "../common/Button";
+import apiService from "../../utils/api";
 
 const FinancialDashboard = ({ onViewDetails }) => {
-  const [selectedPeriod, setSelectedPeriod] = useState("today");
+  const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [financialData, setFinancialData] = useState(null);
 
-  // Mock financial data
-  const todayStats = {
-    totalSales: 3774,
-    totalOrders: 9,
-    avgOrderValue: 419,
-    profit: 1887,
-    growth: 18,
-    previousSales: 3200,
-  };
+  // Fetch financial data
+  useEffect(() => {
+    fetchFinancialData();
+  }, [selectedPeriod]);
 
-  const yesterdayStats = {
-    totalSales: 2850,
-    totalOrders: 7,
-    avgOrderValue: 407,
-    profit: 1425,
-    growth: 12,
-    previousSales: 2540,
-  };
-
-  const weekStats = {
-    totalSales: 18750,
-    totalOrders: 42,
-    avgOrderValue: 446,
-    profit: 9375,
-    growth: 24,
-    previousSales: 15120,
-  };
-
-  const monthStats = {
-    totalSales: 85600,
-    totalOrders: 198,
-    avgOrderValue: 432,
-    profit: 42800,
-    growth: 32,
-    previousSales: 64800,
-  };
-
-  const getCurrentStats = () => {
-    switch (selectedPeriod) {
-      case "yesterday":
-        return yesterdayStats;
-      case "week":
-        return weekStats;
-      case "month":
-        return monthStats;
-      default:
-        return todayStats;
+  const fetchFinancialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiService.getSellerFinancialAnalytics(selectedPeriod);
+      if (response.success) {
+        setFinancialData(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching financial data:', error);
+      setError('Failed to load financial data');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Fallback to default data if no real data
+  const getCurrentStats = () => {
+    if (financialData) {
+      return {
+        totalSales: financialData.totalSales || 0,
+        totalOrders: financialData.totalOrders || 0,
+        avgOrderValue: financialData.avgOrderValue || 0,
+        profit: financialData.profit || 0,
+        growth: financialData.growth || 0,
+        previousSales: financialData.previousSales || 0,
+        totalEarnings: financialData.totalEarnings || 0,
+      };
+    }
+    
+    // Fallback data
+    return {
+      totalSales: 0,
+      totalOrders: 0,
+      avgOrderValue: 0,
+      profit: 0,
+      growth: 0,
+      previousSales: 0,
+      totalEarnings: 0,
+    };
   };
 
   const currentStats = getCurrentStats();
 
-  // Hourly sales data for chart
-  const hourlyData = [
-    { time: "12am", sales: 120 },
-    { time: "4am", sales: 80 },
-    { time: "8am", sales: 350 },
-    { time: "12pm", sales: 680 },
-    { time: "4pm", sales: 920 },
-    { time: "8pm", sales: 1200 },
-    { time: "11pm", sales: 850 },
+  // Get hourly/daily data from API or fallback
+  const hourlyData = financialData?.hourlyData || [
+    { time: "12am", sales: 0 },
+    { time: "4am", sales: 0 },
+    { time: "8am", sales: 0 },
+    { time: "12pm", sales: 0 },
+    { time: "4pm", sales: 0 },
+    { time: "8pm", sales: 0 },
+    { time: "11pm", sales: 0 },
   ];
 
-  const maxSales = Math.max(...hourlyData.map((d) => d.sales));
+  const maxSales = Math.max(...hourlyData.map((d) => d.sales), 1);
 
-  const recentTransactions = [
-    {
-      id: "TXN001",
-      customer: "Priya Sharma",
-      amount: 450,
-      time: "2 hours ago",
-      status: "completed",
-      service: "Catering Service",
-    },
-    {
-      id: "TXN002",
-      customer: "Rajesh Kumar",
-      amount: 320,
-      time: "4 hours ago",
-      status: "completed",
-      service: "Photography",
-    },
-    {
-      id: "TXN003",
-      customer: "Anjali Thapa",
-      amount: 180,
-      time: "6 hours ago",
-      status: "pending",
-      service: "Home Cleaning",
-    },
-    {
-      id: "TXN004",
-      customer: "Deepak Rai",
-      amount: 650,
-      time: "8 hours ago",
-      status: "completed",
-      service: "Event Planning",
-    },
-  ];
+  const recentTransactions = financialData?.recentTransactions || [];
 
   const periodOptions = [
     { value: "today", label: "Today" },
@@ -124,6 +92,35 @@ const FinancialDashboard = ({ onViewDetails }) => {
     { value: "week", label: "This Week" },
     { value: "month", label: "This Month" },
   ];
+
+  if (loading) {
+    return (
+      <Card className="p-6 border-l-4 border-l-green-500">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-48 bg-gray-200 rounded"></div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6 border-l-4 border-l-red-500">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={fetchFinancialData} variant="outline">
+            Retry
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <motion.div
