@@ -1,6 +1,6 @@
 export { validateAuth } from './auth.js';
 export { validateAdmin } from './admin.js';
-export { validateBusiness } from './business.js';
+export { validateBusiness, validateBusinessUpdate } from './business.js';
 export { validateBooking } from './booking.js';
 export { validateSettlement } from './settlement.js';
 export { validateNotification } from './notification.js';

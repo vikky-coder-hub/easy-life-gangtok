@@ -55,10 +55,36 @@ export const notificationController = {
 
   async markAllAsRead(req, res, next) {
     try {
-      await NotificationService.markAllAsRead(req.user);
+      const result = await NotificationService.markAllAsRead(req.user);
       sendResponse(res, 200, {
         success: true,
         message: 'All notifications marked as read',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async delete(req, res, next) {
+    try {
+      const result = await NotificationService.delete(req.params.id, req.user);
+      sendResponse(res, 200, {
+        success: true,
+        message: 'Notification deleted successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getStats(req, res, next) {
+    try {
+      const stats = await NotificationService.getStats(req.user);
+      sendResponse(res, 200, {
+        success: true,
+        data: stats,
       });
     } catch (error) {
       next(error);

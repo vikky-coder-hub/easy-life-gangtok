@@ -429,9 +429,34 @@ class ApiService {
 
   // Business Management APIs
   async getAllBusinesses(params = {}) {
+    console.log('=== API SERVICE GET ALL BUSINESSES ===');
+    console.log('Params:', params);
+    
     const queryString = new URLSearchParams(params).toString();
     const endpoint = queryString ? `/businesses?${queryString}` : '/businesses';
-    return await this.request(endpoint);
+    console.log('Endpoint:', endpoint);
+    
+    const response = await this.request(endpoint);
+    
+    console.log('Response success:', response.success);
+    if (response.success && response.data && response.data.businesses) {
+      console.log('Businesses count:', response.data.businesses.length);
+      
+      // Debug businesses with images
+      const businessesWithImages = response.data.businesses.filter(b => b.images && b.images.length > 0);
+      console.log('Businesses with images:', businessesWithImages.length);
+      
+      if (businessesWithImages.length > 0) {
+        console.log('Sample business with images from API:', {
+          id: businessesWithImages[0]._id,
+          name: businessesWithImages[0].name || businessesWithImages[0].title,
+          imageCount: businessesWithImages[0].images.length,
+          firstImage: businessesWithImages[0].images[0]
+        });
+      }
+    }
+    
+    return response;
   }
 
   async getBusinessById(id) {
@@ -481,6 +506,91 @@ class ApiService {
       body: JSON.stringify({ 
         status: 'approved'
       }),
+    });
+  }
+
+  // Seller Business Management APIs
+  async getMyBusiness() {
+    return await this.request('/businesses/my-business');
+  }
+
+  async updateBusinessProfile(businessId, profileData, imageFiles = null) {
+    if (imageFiles && imageFiles.length > 0) {
+      const formData = new FormData();
+      
+      // Add profile data
+      Object.keys(profileData).forEach(key => {
+        if (profileData[key] !== undefined && profileData[key] !== null) {
+          if (typeof profileData[key] === 'object') {
+            formData.append(key, JSON.stringify(profileData[key]));
+          } else {
+            formData.append(key, profileData[key]);
+          }
+        }
+      });
+      
+      // Add image files
+      imageFiles.forEach((file, index) => {
+        formData.append('images', file);
+      });
+
+      return await this.request(`/businesses/${businessId}`, {
+        method: 'PUT',
+        body: formData,
+        isFormData: true,
+      });
+    } else {
+      return await this.request(`/businesses/${businessId}`, {
+        method: 'PUT',
+        body: JSON.stringify(profileData),
+      });
+    }
+  }
+
+  async updateBusinessPhotos(businessId, imageFiles) {
+    console.log('=== API SERVICE UPDATE BUSINESS PHOTOS ===');
+    console.log('Business ID:', businessId);
+    console.log('Image files:', imageFiles);
+    console.log('Number of files:', imageFiles.length);
+    
+    const formData = new FormData();
+    
+    imageFiles.forEach((file, index) => {
+      console.log(`Appending file ${index}:`, {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      formData.append('images', file);
+    });
+
+    // Log FormData contents
+    console.log('FormData contents:');
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
+
+    return await this.request(`/businesses/${businessId}/photos`, {
+      method: 'PUT',
+      body: formData,
+      isFormData: true,
+    });
+  }
+
+  async updateBusinessHours(businessId, hours) {
+    return await this.request(`/businesses/${businessId}/hours`, {
+      method: 'PUT',
+      body: JSON.stringify({ hours }),
+    });
+  }
+
+  async deleteBusinessImage(businessId, publicId) {
+    console.log('=== API SERVICE DELETE BUSINESS IMAGE ===');
+    console.log('Business ID:', businessId);
+    console.log('Public ID:', publicId);
+    
+    return await this.request(`/businesses/${businessId}/images/${publicId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -570,6 +680,44 @@ class ApiService {
     return await this.request(`/users/${userId}/ban`, {
       method: 'PATCH',
       body: JSON.stringify({ isBanned }),
+    });
+  }
+
+  // Notification APIs
+  async getNotifications(page = 1, limit = 10) {
+    return await this.request(`/notifications?page=${page}&limit=${limit}`);
+  }
+
+  async getUnreadNotifications() {
+    return await this.request('/notifications/unread');
+  }
+
+  async getNotificationStats() {
+    return await this.request('/notifications/stats');
+  }
+
+  async markNotificationAsRead(notificationId) {
+    return await this.request(`/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return await this.request('/notifications/mark-all-read', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId) {
+    return await this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async sendNotification(notificationData) {
+    return await this.request('/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify(notificationData),
     });
   }
 

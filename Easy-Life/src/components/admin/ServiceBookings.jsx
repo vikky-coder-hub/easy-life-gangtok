@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -22,171 +22,59 @@ import {
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import apiService from "../../utils/api";
 
 const ServiceBookings = ({ onBack }) => {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Mock service bookings data from all sellers
-  const serviceBookings = [
-    {
-      id: "BK001",
-      seller: {
-        name: "Gangtok Electricians",
-        email: "contact@gangtokelectricians.com",
-        phone: "+91 8765432109",
-        businessId: "BUS001",
-      },
-      customer: {
-        name: "Rajesh Sharma",
-        email: "rajesh.sharma@email.com",
-        phone: "+91 9841234567",
-      },
-      service: "Home Electrical Repair",
-      eventDate: "December 25, 2024",
-      eventTime: "10:00 AM - 2:00 PM",
-      location: "MG Road, Gangtok",
-      bookingDate: "Dec 20, 2024",
-      status: "confirmed",
-      amount: 1500,
-      commission: 225, // 15%
-      guestCount: 1,
-      specialRequests: "Need urgent repair for power outage",
-      paymentStatus: "paid",
-      paymentId: "pay_MkB2Tx7QZghFK8",
-    },
-    {
-      id: "BK002",
-      seller: {
-        name: "Mountain View Plumbers",
-        email: "info@mountainplumbers.com",
-        phone: "+91 7654321098",
-        businessId: "BUS002",
-      },
-      customer: {
-        name: "Priya Devi",
-        email: "priya.devi@email.com",
-        phone: "+91 9812345678",
-      },
-      service: "Bathroom Pipe Repair",
-      eventDate: "December 22, 2024",
-      eventTime: "9:00 AM - 12:00 PM",
-      location: "Tadong, Gangtok",
-      bookingDate: "Dec 18, 2024",
-      status: "pending",
-      amount: 850,
-      commission: 127.5, // 15%
-      guestCount: 1,
-      specialRequests: "Leaking pipe in master bathroom",
-      paymentStatus: "pending",
-      paymentId: "pay_NlC3Uy8RahjGL9",
-    },
-    {
-      id: "BK003",
-      seller: {
-        name: "Sikkim Car Service",
-        email: "service@sikkimcar.com",
-        phone: "+91 6543210987",
-        businessId: "BUS003",
-      },
-      customer: {
-        name: "Karma Bhutia",
-        email: "karma.bhutia@email.com",
-        phone: "+91 9823456789",
-      },
-      service: "Car AC Repair",
-      eventDate: "December 24, 2024",
-      eventTime: "2:00 PM - 5:00 PM",
-      location: "Tibet Road, Gangtok",
-      bookingDate: "Dec 19, 2024",
-      status: "completed",
-      amount: 2200,
-      commission: 330, // 15%
-      guestCount: 1,
-      specialRequests: "AC not cooling properly, check compressor",
-      paymentStatus: "paid",
-      paymentId: "pay_OmD4Vz9SbikHM0",
-    },
-    {
-      id: "BK004",
-      seller: {
-        name: "Gangtok Home Cleaners",
-        email: "clean@gangtok.com",
-        phone: "+91 5432109876",
-        businessId: "BUS004",
-      },
-      customer: {
-        name: "Tenzin Norbu",
-        email: "tenzin.norbu@email.com",
-        phone: "+91 9834567890",
-      },
-      service: "Deep House Cleaning",
-      eventDate: "December 26, 2024",
-      eventTime: "8:00 AM - 4:00 PM",
-      location: "Ranipool, Gangtok",
-      bookingDate: "Dec 21, 2024",
-      status: "cancelled",
-      amount: 1200,
-      commission: 180, // 15%
-      guestCount: 1,
-      specialRequests: "Full house deep cleaning before New Year",
-      paymentStatus: "refunded",
-      paymentId: "pay_PnE5Wa0TcjlIN1",
-      cancellationReason: "Customer cancelled due to family emergency",
-    },
-    {
-      id: "BK005",
-      seller: {
-        name: "Tech Support Gangtok",
-        email: "tech@gangtoksupport.com",
-        phone: "+91 4321098765",
-        businessId: "BUS005",
-      },
-      customer: {
-        name: "Sonam Choden",
-        email: "sonam.choden@email.com",
-        phone: "+91 9845678901",
-      },
-      service: "Laptop Screen Repair",
-      eventDate: "December 27, 2024",
-      eventTime: "11:00 AM - 3:00 PM",
-      location: "Lal Market, Gangtok",
-      bookingDate: "Dec 22, 2024",
-      status: "confirmed",
-      amount: 3500,
-      commission: 525, // 15%
-      guestCount: 1,
-      specialRequests: "Replace cracked laptop screen, backup data",
-      paymentStatus: "paid",
-      paymentId: "pay_QoF6Xb1UdkmJO2",
-    },
-  ];
+  // Fetch bookings from API
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await apiService.getAllBookings({
+          status: selectedStatus === 'all' ? undefined : selectedStatus,
+          search: searchTerm || undefined,
+          page: 1,
+          limit: 100 // Get more bookings for admin view
+        });
+        
+        if (response.success) {
+          setBookings(response.data.bookings || []);
+        } else {
+          setError('Failed to load bookings');
+        }
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+        setError(err.message || 'Failed to load bookings');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredBookings = serviceBookings.filter((booking) => {
-    const matchesSearch =
-      booking.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.seller.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.id.toLowerCase().includes(searchTerm.toLowerCase());
+    fetchBookings();
+  }, [selectedStatus, searchTerm]);
 
-    const matchesStatus =
-      selectedStatus === "all" || booking.status === selectedStatus;
-
-    return matchesSearch && matchesStatus;
-  });
+  // Since we're filtering on the backend, filteredBookings is just the bookings array
+  const filteredBookings = bookings;
 
   const bookingStats = {
-    total: serviceBookings.length,
-    pending: serviceBookings.filter((b) => b.status === "pending").length,
-    confirmed: serviceBookings.filter((b) => b.status === "confirmed").length,
-    completed: serviceBookings.filter((b) => b.status === "completed").length,
-    cancelled: serviceBookings.filter((b) => b.status === "cancelled").length,
-    totalRevenue: serviceBookings
+    total: bookings.length,
+    pending: bookings.filter((b) => b.status === "pending").length,
+    confirmed: bookings.filter((b) => b.status === "confirmed").length,
+    completed: bookings.filter((b) => b.status === "completed").length,
+    cancelled: bookings.filter((b) => b.status === "cancelled").length,
+    totalRevenue: bookings
       .filter((b) => b.paymentStatus === "paid")
       .reduce((sum, b) => sum + b.amount, 0),
-    totalCommission: serviceBookings
+    totalCommission: bookings
       .filter((b) => b.paymentStatus === "paid")
       .reduce((sum, b) => sum + b.commission, 0),
   };
@@ -234,10 +122,107 @@ const ServiceBookings = ({ onBack }) => {
     }
   };
 
-  const handleAdminAction = (bookingId, action) => {
-    console.log(`Admin action: ${action} for booking: ${bookingId}`);
-    // Handle admin actions like force cancel, refund, etc.
+  const handleAdminAction = async (bookingId, action) => {
+    try {
+      setActionLoading(true);
+      let response;
+      
+      switch (action) {
+        case 'force-cancel':
+          const reason = prompt('Enter cancellation reason:');
+          if (!reason) return;
+          response = await apiService.adminCancelBooking(bookingId, reason);
+          break;
+        case 'confirm':
+          response = await apiService.confirmBooking(bookingId);
+          break;
+        case 'complete':
+          response = await apiService.completeBooking(bookingId);
+          break;
+        case 'refund':
+          if (confirm('Are you sure you want to initiate a refund for this booking?')) {
+            // Note: This would need a specific refund API endpoint
+            console.log('Refund action would be implemented here');
+            alert('Refund functionality would be implemented with payment gateway integration');
+          }
+          return;
+        case 'view-seller':
+          // Navigate to seller profile - this would need routing implementation
+          console.log('Navigate to seller profile:', bookingId);
+          alert('Seller profile navigation would be implemented');
+          return;
+        case 'contact':
+          // Open contact modal or navigate to communication - this would need additional UI
+          console.log('Contact parties for booking:', bookingId);
+          alert('Contact functionality would be implemented');
+          return;
+        default:
+          console.log(`Unknown action: ${action}`);
+          return;
+      }
+      
+      if (response && response.success) {
+        alert(`Action ${action} completed successfully`);
+        // Refresh bookings data
+        window.location.reload();
+      } else {
+        alert(`Failed to ${action} booking`);
+      }
+    } catch (error) {
+      console.error(`Error performing ${action}:`, error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setActionLoading(false);
+    }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Admin Dashboard
+            </Button>
+            <h1 className="text-2xl font-bold text-gray-900">Service Bookings</h1>
+          </div>
+          <Card className="p-12 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading service bookings...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Admin Dashboard
+            </Button>
+            <h1 className="text-2xl font-bold text-gray-900">Service Bookings</h1>
+          </div>
+          <Card className="p-12 text-center">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Error Loading Bookings
+            </h3>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Button onClick={() => window.location.reload()} variant="primary">
+              Retry
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedBooking) {
     return (

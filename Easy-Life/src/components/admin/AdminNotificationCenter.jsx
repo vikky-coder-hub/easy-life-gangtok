@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Bell,
@@ -27,129 +27,61 @@ import {
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import apiService from "../../utils/api";
 
 const AdminNotificationCenter = ({ onBack }) => {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock admin notifications data
-  const notifications = [
-    {
-      id: "admin-001",
-      type: "urgent",
-      category: "security",
-      title: "Suspicious Login Activity Detected",
-      message:
-        "Multiple failed login attempts from IP 192.168.1.100. User account 'john_doe' may be compromised.",
-      timestamp: "2 minutes ago",
-      isRead: false,
-      priority: "high",
-      source: "Security System",
-      actions: ["Block IP", "Lock Account", "Investigate"],
-    },
-    {
-      id: "admin-002",
-      type: "warning",
-      category: "content",
-      title: "Content Violation Reported",
-      message:
-        "Business listing 'XYZ Services' has been reported for inappropriate content by 3 users.",
-      timestamp: "15 minutes ago",
-      isRead: false,
-      priority: "medium",
-      source: "Content Moderation",
-      actions: ["Review Content", "Contact Business", "Remove Listing"],
-    },
-    {
-      id: "admin-003",
-      type: "info",
-      category: "business",
-      title: "New Business Registration",
-      message:
-        "ABC Electronics has submitted a new business registration and is pending approval.",
-      timestamp: "1 hour ago",
-      isRead: true,
-      priority: "medium",
-      source: "Business Management",
-      actions: ["Review Application", "Approve", "Request More Info"],
-    },
-    {
-      id: "admin-004",
-      type: "success",
-      category: "financial",
-      title: "Monthly Revenue Target Achieved",
-      message:
-        "Platform has reached 105% of monthly revenue target with ₹1,25,000 total earnings.",
-      timestamp: "2 hours ago",
-      isRead: true,
-      priority: "low",
-      source: "Financial System",
-      actions: ["View Details", "Generate Report"],
-    },
-    {
-      id: "admin-005",
-      type: "urgent",
-      category: "system",
-      title: "Database Performance Alert",
-      message:
-        "Database query response time increased by 40%. Immediate attention required.",
-      timestamp: "3 hours ago",
-      isRead: false,
-      priority: "high",
-      source: "System Monitor",
-      actions: ["Check Logs", "Optimize Database", "Scale Resources"],
-    },
-    {
-      id: "admin-006",
-      type: "info",
-      category: "users",
-      title: "User Growth Milestone",
-      message:
-        "Platform has reached 1,500 registered users! Growth rate: +12% this month.",
-      timestamp: "5 hours ago",
-      isRead: true,
-      priority: "low",
-      source: "Analytics System",
-      actions: ["View Analytics", "Celebration Post"],
-    },
-    {
-      id: "admin-007",
-      type: "warning",
-      category: "financial",
-      title: "Payment Gateway Issue",
-      message:
-        "Payment processing failed for 5 transactions. Gateway timeout errors detected.",
-      timestamp: "6 hours ago",
-      isRead: false,
-      priority: "high",
-      source: "Payment System",
-      actions: ["Check Gateway", "Retry Payments", "Contact Support"],
-    },
-    {
-      id: "admin-008",
-      type: "info",
-      category: "content",
-      title: "Weekly Content Summary",
-      message:
-        "This week: 24 new business listings, 156 reviews, 89 photos uploaded.",
-      timestamp: "1 day ago",
-      isRead: true,
-      priority: "low",
-      source: "Content System",
-      actions: ["View Details", "Quality Check"],
-    },
-  ];
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
-  const notificationStats = {
-    total: notifications.length,
-    unread: notifications.filter((n) => !n.isRead).length,
-    urgent: notifications.filter((n) => n.type === "urgent").length,
-    high: notifications.filter((n) => n.priority === "high").length,
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getNotifications(1, 50);
+      if (response.success) {
+        setNotifications(response.data.notifications || []);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredNotifications = notifications.filter((notification) => {
+  // Transform backend notification to match admin format
+  const transformNotification = (notification) => {
+    return {
+      id: notification._id,
+      type: notification.type || 'info',
+      category: notification.category || 'system',
+      title: notification.title,
+      message: notification.message,
+      timestamp: new Date(notification.createdAt).toLocaleString(),
+      isRead: notification.isRead,
+      priority: notification.priority || 'medium',
+      source: notification.source || 'System',
+      actions: notification.actions || [],
+    };
+  };
+
+  const transformedNotifications = notifications.map(transformNotification);
+
+  const notificationStats = {
+    total: transformedNotifications.length,
+    unread: transformedNotifications.filter((n) => !n.isRead).length,
+    urgent: transformedNotifications.filter((n) => n.type === "urgent").length,
+    high: transformedNotifications.filter((n) => n.priority === "high").length,
+  };
+
+  const filteredNotifications = transformedNotifications.filter((notification) => {
     const matchesFilter =
       selectedFilter === "all" ||
       notification.category === selectedFilter ||
@@ -220,17 +152,44 @@ const AdminNotificationCenter = ({ onBack }) => {
     alert(`${action} action would be performed for: ${notification.title}`);
   };
 
-  const markAsRead = (notificationId) => {
-    console.log(`Marking notification ${notificationId} as read`);
+  const markAsRead = async (notificationId) => {
+    try {
+      const response = await apiService.markNotificationAsRead(notificationId);
+      if (response.success) {
+        setNotifications(prev => 
+          prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const deleteNotification = (notificationId) => {
-    console.log(`Deleting notification ${notificationId}`);
+  const deleteNotification = async (notificationId) => {
+    try {
+      const response = await apiService.deleteNotification(notificationId);
+      if (response.success) {
+        setNotifications(prev => 
+          prev.filter(n => n._id !== notificationId)
+        );
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    console.log("Marking all notifications as read");
-    alert("All notifications marked as read!");
+  const markAllAsRead = async () => {
+    try {
+      const response = await apiService.markAllNotificationsAsRead();
+      if (response.success) {
+        setNotifications(prev => 
+          prev.map(n => ({ ...n, isRead: true }))
+        );
+        alert("All notifications marked as read!");
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
   const clearAllNotifications = () => {
@@ -239,6 +198,20 @@ const AdminNotificationCenter = ({ onBack }) => {
       alert("All notifications cleared!");
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading notifications...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedNotification) {
     const NotificationIcon = getNotificationIcon(selectedNotification.type);

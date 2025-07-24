@@ -57,8 +57,23 @@ const ListedBusinesses = ({ onBack }) => {
           approved: approvedBusinesses.length,
           banned: bannedBusinesses.length,
           total: allBusinesses.length,
-          businesses: allBusinesses.map(b => ({ id: b._id, name: b.name, status: b.status }))
+          businesses: allBusinesses.map(b => ({ 
+            id: b._id, 
+            name: b.name || b.title, 
+            status: b.status,
+            images: b.images,
+            imageCount: b.images ? b.images.length : 0
+          }))
         });
+        
+        // Debug first business with images
+        const businessWithImages = allBusinesses.find(b => b.images && b.images.length > 0);
+        if (businessWithImages) {
+          console.log('=== SAMPLE BUSINESS WITH IMAGES ===');
+          console.log('Business:', businessWithImages.name || businessWithImages.title);
+          console.log('Images array:', businessWithImages.images);
+          console.log('First image:', businessWithImages.images[0]);
+        }
         
         // Map backend status to listingStatus for UI consistency
         const businessesWithListingStatus = allBusinesses.map((business) => ({
@@ -219,7 +234,7 @@ const ListedBusinesses = ({ onBack }) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Business Name
                       </label>
-                      <p className="text-gray-900">{selectedBusiness.name}</p>
+                      <p className="text-gray-900">{selectedBusiness.title || selectedBusiness.name || 'Unnamed Business'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -234,7 +249,7 @@ const ListedBusinesses = ({ onBack }) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Phone
                       </label>
-                      <p className="text-gray-900">{selectedBusiness.phone}</p>
+                      <p className="text-gray-900">{selectedBusiness.contact?.phone || selectedBusiness.phone || 'Not provided'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -249,7 +264,7 @@ const ListedBusinesses = ({ onBack }) => {
                         Address
                       </label>
                       <p className="text-gray-900">
-                        {selectedBusiness.address}
+                        {selectedBusiness.location?.address || selectedBusiness.address || 'Address not provided'}
                       </p>
                     </div>
                     <div className="md:col-span-2">
@@ -303,12 +318,15 @@ const ListedBusinesses = ({ onBack }) => {
                     Business Hours
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {Object.entries(selectedBusiness.hours || {}).map(
+                    {Object.entries(selectedBusiness.businessHours || selectedBusiness.hours || {}).map(
                       ([day, hours]) => (
                         <div key={day} className="flex justify-between">
-                          <span className="text-gray-700">{day}</span>
+                          <span className="text-gray-700 capitalize">{day}</span>
                           <span className="text-gray-900 font-medium">
-                            {hours}
+                            {typeof hours === 'object' 
+                              ? (hours.isOpen ? `${hours.open} - ${hours.close}` : 'Closed')
+                              : hours || 'Not specified'
+                            }
                           </span>
                         </div>
                       )
@@ -487,20 +505,66 @@ const ListedBusinesses = ({ onBack }) => {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Business Images
+                    <span className="ml-2 text-sm text-gray-500">
+                      ({selectedBusiness.images ? selectedBusiness.images.length : 0} images)
+                    </span>
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {selectedBusiness.images
-                      ?.slice(0, 4)
-                      .map((image, index) => (
-                        <img
-                          key={index}
-                          src={image}
-                          alt={`Business ${index + 1}`}
-                          className="w-full h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => window.open(image, "_blank")}
-                        />
-                      ))}
+                    {selectedBusiness.images && selectedBusiness.images.length > 0 ? (
+                      selectedBusiness.images
+                        .slice(0, 4)
+                        .map((image, index) => {
+                          console.log('=== ADMIN BUSINESS IMAGE DEBUG ===');
+                          console.log('Image object:', image);
+                          console.log('Image URL:', image.url || image);
+                          
+                          // Handle both object format {url, publicId} and string format
+                          const imageUrl = typeof image === 'object' ? image.url : image;
+                          
+                          if (!imageUrl) {
+                            console.warn('No URL found for image:', image);
+                            return null;
+                          }
+                          
+                          return (
+                            <div key={index} className="relative">
+                              <img
+                                src={imageUrl}
+                                alt={`Business ${index + 1}`}
+                                className="w-full h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => window.open(imageUrl, "_blank")}
+                                onError={(e) => {
+                                  console.error('Image failed to load:', imageUrl);
+                                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiA5QzEwLjM0IDkgOSAxMC4zNCA5IDEyQzkgMTMuNjYgMTAuMzQgMTUgMTIgMTVDMTMuNjYgMTUgMTUgMTMuNjYgMTUgMTJDMTUgMTAuMzQgMTMuNjYgOSAxMiA5WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
+                                  e.target.className = 'w-full h-20 object-cover rounded-lg bg-gray-100 flex items-center justify-center';
+                                }}
+                                onLoad={() => {
+                                  console.log('Image loaded successfully:', imageUrl);
+                                }}
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          );
+                        }).filter(Boolean)
+                    ) : (
+                      <div className="col-span-2 text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+                        <Store className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <div className="text-sm">No images uploaded</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Business owner hasn't uploaded any images yet
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {selectedBusiness.images && selectedBusiness.images.length > 4 && (
+                    <div className="mt-3 text-center">
+                      <button className="text-blue-600 hover:text-blue-800 text-sm">
+                        View all {selectedBusiness.images.length} images
+                      </button>
+                    </div>
+                  )}
                 </Card>
               </div>
             </div>
@@ -671,7 +735,17 @@ const ListedBusinesses = ({ onBack }) => {
                             size="sm"
                             variant="outline"
                             icon={Eye}
-                            onClick={() => setSelectedBusiness(business)}
+                            onClick={() => {
+                              console.log('=== SELECTING BUSINESS FOR DETAILS ===');
+                              console.log('Business object:', business);
+                              console.log('Business images:', business.images);
+                              console.log('Images count:', business.images ? business.images.length : 0);
+                              if (business.images && business.images.length > 0) {
+                                console.log('First image:', business.images[0]);
+                                console.log('Image type:', typeof business.images[0]);
+                              }
+                              setSelectedBusiness(business);
+                            }}
                           >
                             Manage
                           </Button>

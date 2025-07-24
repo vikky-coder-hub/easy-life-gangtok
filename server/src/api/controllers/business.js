@@ -37,6 +37,11 @@ export const businessController = {
 
   async updatePhotos(req, res, next) {
     try {
+      console.log('=== UPDATE PHOTOS DEBUG ===');
+      console.log('Business ID:', req.params.id);
+      console.log('Files received:', req.files);
+      console.log('User:', req.user);
+      
       const business = await BusinessService.updatePhotos(req.params.id, req.files, req.user);
       sendResponse(res, 200, {
         success: true,
@@ -44,6 +49,26 @@ export const businessController = {
         data: business,
       });
     } catch (error) {
+      console.error('Photo update error:', error);
+      next(error);
+    }
+  },
+
+  async deleteImage(req, res, next) {
+    try {
+      console.log('=== DELETE IMAGE DEBUG ===');
+      console.log('Business ID:', req.params.id);
+      console.log('Public ID:', req.params.publicId);
+      console.log('User:', req.user);
+      
+      const business = await BusinessService.deleteImage(req.params.id, req.params.publicId, req.user);
+      sendResponse(res, 200, {
+        success: true,
+        message: 'Image deleted successfully',
+        data: business,
+      });
+    } catch (error) {
+      console.error('Image delete error:', error);
       next(error);
     }
   },

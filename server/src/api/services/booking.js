@@ -39,14 +39,50 @@ export const BookingService = {
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .populate('businessId customerId', 'name email phone');
+    
+    // Transform data to match frontend expectations
+    const transformedBookings = bookings.map(booking => ({
+      ...booking.toObject(),
+      id: booking._id,
+      seller: booking.businessId,
+      customer: booking.customerId,
+      eventDate: booking.eventDate ? new Date(booking.eventDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }) : '',
+      bookingDate: booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }) : ''
+    }));
+    
     const total = await Booking.countDocuments(query);
-    return { bookings, total, page, limit };
+    return { bookings: transformedBookings, total, page, limit };
   },
 
   async getById(id) {
     const booking = await Booking.findById(id).populate('businessId customerId', 'name email phone');
     if (!booking) throw new Error('Booking not found');
-    return booking;
+    
+    // Transform data to match frontend expectations
+    return {
+      ...booking.toObject(),
+      id: booking._id,
+      seller: booking.businessId,
+      customer: booking.customerId,
+      eventDate: booking.eventDate ? new Date(booking.eventDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }) : '',
+      bookingDate: booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }) : ''
+    };
   },
 
   async getCustomerBookings(customerId, user) {

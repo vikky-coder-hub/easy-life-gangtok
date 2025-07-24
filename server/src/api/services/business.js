@@ -59,19 +59,78 @@ export const BusinessService = {
   },
 
   async updatePhotos(id, files, user) {
+    console.log('=== UPDATE PHOTOS SERVICE DEBUG ===');
+    console.log('Files received:', files);
+    console.log('Files type:', typeof files);
+    console.log('Is files an array?', Array.isArray(files));
+    console.log('Files length:', files?.length);
+    
     const business = await Business.findById(id);
     if (!business) throw new NotFoundError('Business not found');
     if (business.userId.toString() !== user.userId && user.userType !== 'admin') {
       throw new UnauthorizedError('Unauthorized');
     }
 
-    if (files?.images) {
+    // Handle files from multer.array('images', 5) - files is directly an array
+    if (files && files.length > 0) {
+      console.log('Processing', files.length, 'files for upload');
+      
+      // Delete existing images from cloudinary
       for (const image of business.images) {
-        if (image.publicId) await deleteImage(image.publicId);
+        if (image.publicId) {
+          console.log('Deleting existing image:', image.publicId);
+          await deleteImage(image.publicId);
+        }
       }
-      business.images = await Promise.all(files.images.map(file => uploadImage(file, 'businesses')));
+      
+      // Upload new images
+      console.log('Uploading new images...');
+      business.images = await Promise.all(files.map(file => {
+        console.log('Uploading file:', file.originalname);
+        return uploadImage(file, 'businesses');
+      }));
+      
+      console.log('Upload complete. New images:', business.images);
+    } else {
+      console.log('No files to process');
     }
+    
     await business.save();
+    console.log('Business saved with images:', business.images);
+    return business;
+  },
+
+  async deleteImage(id, publicId, user) {
+    console.log('=== DELETE IMAGE SERVICE DEBUG ===');
+    console.log('Business ID:', id);
+    console.log('Public ID to delete:', publicId);
+    
+    const business = await Business.findById(id);
+    if (!business) throw new NotFoundError('Business not found');
+    if (business.userId.toString() !== user.userId && user.userType !== 'admin') {
+      throw new UnauthorizedError('Unauthorized');
+    }
+
+    // Find the image to delete
+    const imageIndex = business.images.findIndex(img => img.publicId === publicId);
+    if (imageIndex === -1) {
+      throw new NotFoundError('Image not found');
+    }
+
+    const imageToDelete = business.images[imageIndex];
+    console.log('Found image to delete:', imageToDelete);
+
+    // Delete from Cloudinary
+    if (imageToDelete.publicId) {
+      console.log('Deleting from Cloudinary:', imageToDelete.publicId);
+      await deleteImage(imageToDelete.publicId);
+    }
+
+    // Remove from business images array
+    business.images.splice(imageIndex, 1);
+    await business.save();
+    
+    console.log('Image deleted successfully. Remaining images:', business.images.length);
     return business;
   },
 
@@ -127,6 +186,24 @@ export const BusinessService = {
       .limit(Number(limit))
       .populate('userId', 'name email phone')
       .populate('category', 'name');
+    
+    console.log('=== BACKEND BUSINESS SERVICE DEBUG ===');
+    console.log('Query:', query);
+    console.log('Found businesses:', businesses.length);
+    
+    // Debug businesses with images
+    const businessesWithImages = businesses.filter(b => b.images && b.images.length > 0);
+    console.log('Businesses with images:', businessesWithImages.length);
+    
+    if (businessesWithImages.length > 0) {
+      console.log('Sample business with images:', {
+        id: businessesWithImages[0]._id,
+        name: businessesWithImages[0].name || businessesWithImages[0].title,
+        imageCount: businessesWithImages[0].images.length,
+        firstImage: businessesWithImages[0].images[0]
+      });
+    }
+    
     const total = await Business.countDocuments(query);
     return { businesses, total, page, limit };
   },
