@@ -51,6 +51,30 @@ export const bookingController = {
     }
   },
 
+  async getMySellerBookings(req, res, next) {
+    try {
+      const bookings = await BookingService.getSellerBookings(req.user.userId, req.user);
+      sendResponse(res, 200, {
+        success: true,
+        data: bookings,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getSellerOrderStats(req, res, next) {
+    try {
+      const stats = await BookingService.getSellerOrderStats(req.user.userId, req.user);
+      sendResponse(res, 200, {
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async confirm(req, res, next) {
     try {
       const booking = await BookingService.updateStatus(req.params.id, 'confirmed', null, req.user);

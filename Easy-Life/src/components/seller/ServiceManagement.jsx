@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -29,263 +29,170 @@ import {
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import apiService from "../../utils/api";
+import { useAuth } from "../../context/AuthContext";
 
 const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
+  const { user, isAuthenticated, isSeller } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab); // "orders" or "settlements"
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedSettlement, setSelectedSettlement] = useState(null);
+  
+  // Real data state management
+  const [orders, setOrders] = useState([]);
+  const [orderStats, setOrderStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock orders data for current seller
-  const orders = [
-    {
-      id: "ORD001",
-      customer: {
-        name: "Rajesh Sharma",
-        email: "rajesh.sharma@email.com",
-        phone: "+91 9841234567",
-      },
-      service: "Home Electrical Repair",
-      serviceType: "Emergency Repair",
-      eventDate: "December 25, 2024",
-      eventTime: "10:00 AM - 2:00 PM",
-      location: "MG Road, Gangtok",
-      orderDate: "Dec 20, 2024",
-      status: "pending", // pending, confirmed, in-progress, completed, cancelled, rejected
-      amount: 1500,
-      platformFee: 225, // 15%
-      netAmount: 1275,
-      priority: "high",
-      specialRequests: "Need urgent repair for power outage",
-      description:
-        "Main electrical panel needs inspection and repair. Customer experiencing complete power outage.",
-      paymentStatus: "paid",
-      paymentId: "pay_MkB2Tx7QZghFK8",
-      customerRating: null,
-      customerReview: null,
-      estimatedDuration: "4 hours",
-      requiresApproval: true,
-      notifications: ["New urgent order", "Payment confirmed"],
-    },
-    {
-      id: "ORD002",
-      customer: {
-        name: "Priya Devi",
-        email: "priya.devi@email.com",
-        phone: "+91 9812345678",
-      },
-      service: "Electrical Installation",
-      serviceType: "New Installation",
-      eventDate: "December 22, 2024",
-      eventTime: "9:00 AM - 5:00 PM",
-      location: "Tadong, Gangtok",
-      orderDate: "Dec 18, 2024",
-      status: "confirmed",
-      amount: 2500,
-      platformFee: 375, // 15%
-      netAmount: 2125,
-      priority: "medium",
-      specialRequests: "Install new electrical points and ceiling fans",
-      description:
-        "Complete electrical installation for newly constructed rooms. Includes wiring, switches, and fixtures.",
-      paymentStatus: "paid",
-      paymentId: "pay_NlC3Uy8RahjGL9",
-      customerRating: null,
-      customerReview: null,
-      estimatedDuration: "8 hours",
-      requiresApproval: false,
-      notifications: ["Order confirmed", "Materials list required"],
-    },
-    {
-      id: "ORD003",
-      customer: {
-        name: "Karma Bhutia",
-        email: "karma.bhutia@email.com",
-        phone: "+91 9823456789",
-      },
-      service: "Emergency Electrical Fix",
-      serviceType: "Emergency Repair",
-      eventDate: "December 15, 2024",
-      eventTime: "2:00 PM - 4:00 PM",
-      location: "Tibet Road, Gangtok",
-      orderDate: "Dec 15, 2024",
-      status: "completed",
-      amount: 800,
-      platformFee: 120, // 15%
-      netAmount: 680,
-      priority: "high",
-      specialRequests: "Urgent power restoration",
-      description:
-        "Short circuit repair and safety inspection completed successfully.",
-      paymentStatus: "paid",
-      paymentId: "pay_OmD4Vz9SbikHM0",
-      customerRating: 5,
-      customerReview: "Excellent and prompt service! Fixed the issue quickly.",
-      estimatedDuration: "2 hours",
-      requiresApproval: false,
-      notifications: ["Service completed", "Payment settled"],
-    },
-    {
-      id: "ORD004",
-      customer: {
-        name: "Tenzin Norbu",
-        email: "tenzin.norbu@email.com",
-        phone: "+91 9834567890",
-      },
-      service: "Electrical Inspection",
-      serviceType: "Safety Inspection",
-      eventDate: "December 28, 2024",
-      eventTime: "10:00 AM - 12:00 PM",
-      location: "Ranipool, Gangtok",
-      orderDate: "Dec 21, 2024",
-      status: "cancelled",
-      amount: 500,
-      platformFee: 75, // 15%
-      netAmount: 425,
-      priority: "low",
-      specialRequests: "Safety inspection for old wiring",
-      description:
-        "Comprehensive electrical safety inspection for old residential wiring.",
-      paymentStatus: "refunded",
-      paymentId: "pay_PnE5Wa0TcjlIN1",
-      cancellationReason:
-        "Customer rescheduled, but we couldn't accommodate new date",
-      customerRating: null,
-      customerReview: null,
-      estimatedDuration: "2 hours",
-      requiresApproval: false,
-      notifications: ["Order cancelled", "Refund processed"],
-    },
-    {
-      id: "ORD005",
-      customer: {
-        name: "Sonam Lhamo",
-        email: "sonam.lhamo@email.com",
-        phone: "+91 9845678901",
-      },
-      service: "Smart Home Setup",
-      serviceType: "Installation & Configuration",
-      eventDate: "December 30, 2024",
-      eventTime: "11:00 AM - 6:00 PM",
-      location: "Development Area, Gangtok",
-      orderDate: "Dec 23, 2024",
-      status: "in-progress",
-      amount: 4500,
-      platformFee: 675, // 15%
-      netAmount: 3825,
-      priority: "medium",
-      specialRequests: "Setup smart switches, security cameras, and automation",
-      description:
-        "Complete smart home automation setup including WiFi switches, security system, and mobile app configuration.",
-      paymentStatus: "paid",
-      paymentId: "pay_RpG7Yc2VelmKP3",
-      customerRating: null,
-      customerReview: null,
-      estimatedDuration: "7 hours",
-      requiresApproval: false,
-      notifications: ["Work in progress", "50% completed"],
-    },
-  ];
+  // Fetch orders and stats on component mount
+  useEffect(() => {
+    if (isAuthenticated && isSeller) {
+      fetchOrdersAndStats();
+    }
+  }, [isAuthenticated, isSeller]);
 
-  // Mock settlements data for current seller
-  const settlements = [
-    {
-      id: "STL001",
-      orderId: "ORD003",
-      customer: "Karma Bhutia",
-      service: "Emergency Electrical Fix",
-      transactionDate: "Dec 15, 2024",
-      settlementDate: "Dec 19, 2024", // T+4 days
-      actualSettlementDate: "Dec 19, 2024",
-      grossAmount: 800,
-      platformFee: 120,
-      taxDeduction: 0,
-      netAmount: 680,
-      status: "completed", // pending, processing, completed, failed, on-hold
-      paymentMode: "Bank Transfer",
-      utrNumber: "UTR123456789",
-      bankAccount: "SBI ****1234",
-      processingDays: 4,
-      settlementCycle: "T+4",
-      razorpayOrderId: "order_MkB2Tx7QZghFK8",
-      settlementType: "automatic",
-    },
-    {
-      id: "STL002",
-      orderId: "ORD002",
-      customer: "Priya Devi",
-      service: "Electrical Installation",
-      transactionDate: "Dec 22, 2024",
-      settlementDate: "Dec 26, 2024", // T+4 days
-      actualSettlementDate: null,
-      grossAmount: 2500,
-      platformFee: 375,
-      taxDeduction: 0,
-      netAmount: 2125,
-      status: "processing",
-      paymentMode: "Bank Transfer",
-      utrNumber: null,
-      bankAccount: "SBI ****1234",
-      processingDays: 2,
-      settlementCycle: "T+4",
-      razorpayOrderId: "order_NlC3Uy8RahjGL9",
-      settlementType: "automatic",
-      estimatedSettlement: "Dec 26, 2024",
-    },
-    {
-      id: "STL003",
-      orderId: "ORD001",
-      customer: "Rajesh Sharma",
-      service: "Home Electrical Repair",
-      transactionDate: "Dec 25, 2024",
-      settlementDate: "Dec 29, 2024", // T+4 days
-      actualSettlementDate: null,
-      grossAmount: 1500,
-      platformFee: 225,
-      taxDeduction: 0,
-      netAmount: 1275,
-      status: "pending",
-      paymentMode: "Bank Transfer",
-      utrNumber: null,
-      bankAccount: "SBI ****1234",
-      processingDays: 4,
-      settlementCycle: "T+4",
-      razorpayOrderId: "order_MkB2Tx7QZghFK8",
-      settlementType: "automatic",
-      estimatedSettlement: "Dec 29, 2024",
-    },
-    {
-      id: "STL004",
-      orderId: "ORD005",
-      customer: "Sonam Lhamo",
-      service: "Smart Home Setup",
-      transactionDate: "Dec 30, 2024",
-      settlementDate: "Jan 3, 2025", // T+4 days
-      actualSettlementDate: null,
-      grossAmount: 4500,
-      platformFee: 675,
-      taxDeduction: 135, // TDS if applicable
-      netAmount: 3690,
-      status: "on-hold",
-      paymentMode: "Bank Transfer",
-      utrNumber: null,
-      bankAccount: "SBI ****1234",
-      processingDays: 4,
-      settlementCycle: "T+4",
-      razorpayOrderId: "order_RpG7Yc2VelmKP3",
-      settlementType: "manual_review",
-      holdReason: "Large transaction under review",
-      estimatedSettlement: "Jan 5, 2025",
-    },
-  ];
+  const fetchOrdersAndStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Check authentication
+      if (!isAuthenticated || !isSeller) {
+        throw new Error('You must be logged in as a seller to view orders');
+      }
+
+      console.log('Fetching orders for user:', user);
+      console.log('API token:', apiService.getToken());
+      console.log('User type:', user?.userType);
+      
+      // First check if seller has a business
+      let businessResponse;
+      try {
+        businessResponse = await apiService.getMyBusiness();
+        console.log('Business response:', businessResponse);
+        
+        if (!businessResponse.success || !businessResponse.data) {
+          throw new Error('You need to create a business profile first to view orders. Please complete your business setup.');
+        }
+      } catch (businessError) {
+        console.error('Business check error:', businessError);
+        throw new Error('You need to create a business profile first to view orders. Please complete your business setup.');
+      }
+      
+      // Fetch orders and stats in parallel
+      const [ordersResponse, statsResponse] = await Promise.all([
+        apiService.getSellerOrders(),
+        apiService.getSellerOrderStats()
+      ]);
+
+      console.log('Orders response:', ordersResponse);
+      console.log('Stats response:', statsResponse);
+
+      if (ordersResponse.success) {
+        const ordersData = ordersResponse.data || [];
+        setOrders(ordersData);
+        console.log('Orders loaded:', ordersData.length);
+        if (ordersData.length > 0) {
+          console.log('Sample order:', ordersData[0]);
+        }
+      } else {
+        throw new Error(ordersResponse.message || 'Failed to fetch orders');
+      }
+
+      if (statsResponse.success) {
+        setOrderStats(statsResponse.data);
+      } else {
+        console.warn('Failed to fetch order stats:', statsResponse.message);
+        // Calculate basic stats from orders if API fails
+        const ordersData = ordersResponse.data || [];
+        setOrderStats({
+          total: ordersData.length,
+          pending: ordersData.filter(o => o.status === 'pending').length,
+          confirmed: ordersData.filter(o => o.status === 'confirmed').length,
+          inProgress: ordersData.filter(o => o.status === 'in-progress').length,
+          completed: ordersData.filter(o => o.status === 'completed').length,
+          cancelled: ordersData.filter(o => o.status === 'cancelled').length,
+          rejected: ordersData.filter(o => o.status === 'rejected').length,
+          totalRevenue: ordersData
+            .filter(o => o.paymentStatus === 'paid')
+            .reduce((sum, o) => sum + (o.amount || 0), 0),
+          totalEarnings: ordersData
+            .filter(o => o.paymentStatus === 'paid')
+            .reduce((sum, o) => sum + (o.netAmount || 0), 0),
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError(err.message || 'Failed to load orders');
+      setOrders([]);
+      setOrderStats(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+  // Real settlements data state management
+  const [settlements, setSettlements] = useState([]);
+  const [settlementStats, setSettlementStats] = useState(null);
+
+  // Fetch settlements data (for now, we'll derive from orders until we have a dedicated settlements API)
+  useEffect(() => {
+    if (orders.length > 0) {
+      // Generate settlement data from completed orders
+      const completedOrders = orders.filter(order => order.status === 'completed' && order.paymentStatus === 'paid');
+      const settlementData = completedOrders.map(order => ({
+        id: `STL${order.id}`,
+        orderId: order.id,
+        customer: order.customer?.name || 'N/A',
+        service: order.service,
+        transactionDate: order.orderDate || order.eventDate,
+        settlementDate: order.settlementDate || 'Pending',
+        actualSettlementDate: order.actualSettlementDate || null,
+        grossAmount: order.amount || 0,
+        platformFee: order.platformFee || 0,
+        taxDeduction: 0,
+        netAmount: order.netAmount || 0,
+        status: order.settlementStatus || 'pending',
+        paymentMode: 'Bank Transfer',
+        utrNumber: order.utrNumber || null,
+        bankAccount: 'SBI ****1234',
+        processingDays: 4,
+        settlementCycle: 'T+4',
+        razorpayOrderId: order.paymentId || null,
+        settlementType: 'automatic',
+        estimatedSettlement: order.estimatedSettlement || 'Processing',
+      }));
+      
+      setSettlements(settlementData);
+      
+      // Calculate settlement stats
+      setSettlementStats({
+        total: settlementData.length,
+        pending: settlementData.filter(s => s.status === 'pending').length,
+        processing: settlementData.filter(s => s.status === 'processing').length,
+        completed: settlementData.filter(s => s.status === 'completed').length,
+        failed: settlementData.filter(s => s.status === 'failed').length,
+        onHold: settlementData.filter(s => s.status === 'on-hold').length,
+        totalPending: settlementData
+          .filter(s => s.status === 'pending')
+          .reduce((sum, s) => sum + s.netAmount, 0),
+        totalCompleted: settlementData
+          .filter(s => s.status === 'completed')
+          .reduce((sum, s) => sum + s.netAmount, 0),
+      });
+    }
+  }, [orders]);
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
-      order.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (order.customer?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.service || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.id || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       selectedStatus === "all" || order.status === selectedStatus;
@@ -295,10 +202,10 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
 
   const filteredSettlements = settlements.filter((settlement) => {
     const matchesSearch =
-      settlement.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.orderId.toLowerCase().includes(searchTerm.toLowerCase());
+      (settlement.customer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (settlement.service || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (settlement.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (settlement.orderId || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       selectedStatus === "all" || settlement.status === selectedStatus;
@@ -306,37 +213,8 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate statistics
-  const orderStats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === "pending").length,
-    confirmed: orders.filter((o) => o.status === "confirmed").length,
-    inProgress: orders.filter((o) => o.status === "in-progress").length,
-    completed: orders.filter((o) => o.status === "completed").length,
-    cancelled: orders.filter((o) => o.status === "cancelled").length,
-    rejected: orders.filter((o) => o.status === "rejected").length,
-    totalRevenue: orders
-      .filter((o) => o.paymentStatus === "paid")
-      .reduce((sum, o) => sum + o.amount, 0),
-    totalEarnings: orders
-      .filter((o) => o.paymentStatus === "paid")
-      .reduce((sum, o) => sum + o.netAmount, 0),
-  };
-
-  const settlementStats = {
-    total: settlements.length,
-    pending: settlements.filter((s) => s.status === "pending").length,
-    processing: settlements.filter((s) => s.status === "processing").length,
-    completed: settlements.filter((s) => s.status === "completed").length,
-    failed: settlements.filter((s) => s.status === "failed").length,
-    onHold: settlements.filter((s) => s.status === "on-hold").length,
-    totalPending: settlements
-      .filter((s) => s.status === "pending")
-      .reduce((sum, s) => sum + s.netAmount, 0),
-    totalCompleted: settlements
-      .filter((s) => s.status === "completed")
-      .reduce((sum, s) => sum + s.netAmount, 0),
-  };
+  // orderStats is now fetched from API in fetchOrdersAndStats()
+  // settlementStats is now calculated from real data in useEffect
 
   const getOrderStatusIcon = (status) => {
     switch (status) {
@@ -899,6 +777,98 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
     );
   }
 
+  // Show authentication error
+  if (!isAuthenticated || !isSeller) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+          <Card className="p-8 text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Access Denied
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You must be logged in as a seller to access this page.
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+          <Card className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading orders...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    const isBusinessSetupError = error.includes('business profile');
+    
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+          <Card className="p-8 text-center">
+            <div className="mb-4">
+              {isBusinessSetupError ? (
+                <AlertCircle className="w-12 h-12 text-orange-500 mx-auto" />
+              ) : (
+                <XCircle className="w-12 h-12 text-red-500 mx-auto" />
+              )}
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              {isBusinessSetupError ? 'Business Setup Required' : 'Error Loading Orders'}
+            </h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <div className="flex justify-center space-x-4">
+              {isBusinessSetupError ? (
+                <Button 
+                  onClick={() => {
+                    // Navigate to business setup - you might need to implement this
+                    console.log('Navigate to business setup');
+                  }} 
+                  variant="primary"
+                >
+                  Set Up Business Profile
+                </Button>
+              ) : (
+                <Button onClick={fetchOrdersAndStats} variant="primary">
+                  Retry
+                </Button>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -933,7 +903,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
               <div className="bg-green-100 px-3 py-2 rounded-lg">
                 <div className="text-sm text-green-800">
                   <span className="font-medium">Total Earnings:</span> ₹
-                  {orderStats.totalEarnings.toLocaleString()}
+                  {orderStats?.totalEarnings?.toLocaleString() || '0'}
                 </div>
               </div>
             </div>
@@ -952,7 +922,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
               }`}
             >
               <Calendar className="w-4 h-4 inline mr-2" />
-              Order Management ({orderStats.total})
+              Order Management ({orderStats?.total || 0})
             </button>
             <button
               onClick={() => setActiveTab("settlements")}
@@ -963,28 +933,28 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
               }`}
             >
               <CreditCard className="w-4 h-4 inline mr-2" />
-              Settlement Tracker ({settlementStats.total})
+              Settlement Tracker ({settlementStats?.total || 0})
             </button>
           </div>
 
-          {activeTab === "orders" && orderStats.pending > 0 && (
+          {activeTab === "orders" && (orderStats?.pending || 0) > 0 && (
             <div className="bg-orange-100 border border-orange-200 px-3 py-2 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Bell className="w-4 h-4 text-orange-600" />
                 <span className="text-sm text-orange-800">
-                  <span className="font-medium">{orderStats.pending}</span>{" "}
+                  <span className="font-medium">{orderStats?.pending || 0}</span>{" "}
                   orders awaiting your response
                 </span>
               </div>
             </div>
           )}
 
-          {activeTab === "settlements" && settlementStats.pending > 0 && (
+          {activeTab === "settlements" && (settlementStats?.pending || 0) > 0 && (
             <div className="bg-blue-100 border border-blue-200 px-3 py-2 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-blue-600" />
                 <span className="text-sm text-blue-800">
-                  ₹{settlementStats.totalPending.toLocaleString()} pending
+                  ₹{settlementStats?.totalPending?.toLocaleString() || '0'} pending
                   settlement
                 </span>
               </div>
@@ -1003,7 +973,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {orderStats.total}
+                      {orderStats?.total || 0}
                     </div>
                     <div className="text-sm text-gray-600">Total Orders</div>
                   </div>
@@ -1017,7 +987,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {orderStats.pending}
+                      {orderStats?.pending || 0}
                     </div>
                     <div className="text-sm text-gray-600">Pending Orders</div>
                   </div>
@@ -1031,7 +1001,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      ₹{orderStats.totalRevenue.toLocaleString()}
+                      ₹{orderStats?.totalRevenue?.toLocaleString() || '0'}
                     </div>
                     <div className="text-sm text-gray-600">Total Revenue</div>
                   </div>
@@ -1045,7 +1015,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      ₹{orderStats.totalEarnings.toLocaleString()}
+                      ₹{orderStats?.totalEarnings?.toLocaleString() || '0'}
                     </div>
                     <div className="text-sm text-gray-600">Your Earnings</div>
                   </div>
@@ -1070,31 +1040,31 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   <Filter className="w-4 h-4 text-gray-500" />
                   <div className="flex space-x-1">
                     {[
-                      { key: "all", label: "All", count: orderStats.total },
+                      { key: "all", label: "All", count: orderStats?.total || 0 },
                       {
                         key: "pending",
                         label: "Pending",
-                        count: orderStats.pending,
+                        count: orderStats?.pending || 0,
                       },
                       {
                         key: "confirmed",
                         label: "Confirmed",
-                        count: orderStats.confirmed,
+                        count: orderStats?.confirmed || 0,
                       },
                       {
                         key: "in-progress",
                         label: "In Progress",
-                        count: orderStats.inProgress,
+                        count: orderStats?.inProgress || 0,
                       },
                       {
                         key: "completed",
                         label: "Completed",
-                        count: orderStats.completed,
+                        count: orderStats?.completed || 0,
                       },
                       {
                         key: "cancelled",
                         label: "Cancelled",
-                        count: orderStats.cancelled,
+                        count: orderStats?.cancelled || 0,
                       },
                     ].map((filter) => (
                       <button
@@ -1313,7 +1283,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {settlementStats.total}
+                      {settlementStats?.total || 0}
                     </div>
                     <div className="text-sm text-gray-600">
                       Total Settlements
@@ -1329,7 +1299,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      ₹{settlementStats.totalPending.toLocaleString()}
+                      ₹{settlementStats?.totalPending?.toLocaleString() || '0'}
                     </div>
                     <div className="text-sm text-gray-600">Pending Amount</div>
                   </div>
@@ -1343,7 +1313,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      ₹{settlementStats.totalCompleted.toLocaleString()}
+                      ₹{settlementStats?.totalCompleted?.toLocaleString() || '0'}
                     </div>
                     <div className="text-sm text-gray-600">Settled Amount</div>
                   </div>
@@ -1357,7 +1327,7 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {settlementStats.processing}
+                      {settlementStats?.processing || 0}
                     </div>
                     <div className="text-sm text-gray-600">Processing</div>
                   </div>
@@ -1402,27 +1372,27 @@ const ServiceManagement = ({ onBack, initialTab = "orders" }) => {
                       {
                         key: "all",
                         label: "All",
-                        count: settlementStats.total,
+                        count: settlementStats?.total || 0,
                       },
                       {
                         key: "pending",
                         label: "Pending",
-                        count: settlementStats.pending,
+                        count: settlementStats?.pending || 0,
                       },
                       {
                         key: "processing",
                         label: "Processing",
-                        count: settlementStats.processing,
+                        count: settlementStats?.processing || 0,
                       },
                       {
                         key: "completed",
                         label: "Completed",
-                        count: settlementStats.completed,
+                        count: settlementStats?.completed || 0,
                       },
                       {
                         key: "on-hold",
                         label: "On Hold",
-                        count: settlementStats.onHold,
+                        count: settlementStats?.onHold || 0,
                       },
                     ].map((filter) => (
                       <button

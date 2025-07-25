@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -14,13 +14,64 @@ import {
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import apiService from "../../utils/api";
 
 const ReviewsManager = ({ onBack }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRating, setFilterRating] = useState("all");
   const [selectedReview, setSelectedReview] = useState(null);
+  
+  // Real data state management
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0
+  });
 
-  const reviews = [
+  // Fetch reviews on component mount and when filters change
+  useEffect(() => {
+    fetchReviews();
+  }, [filterRating, pagination.page]);
+
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      
+      if (filterRating !== "all") {
+        params.rating = filterRating;
+      }
+
+      const response = await apiService.getSellerReviews(params);
+      
+      if (response.success) {
+        setReviews(response.data.reviews || []);
+        setPagination(prev => ({
+          ...prev,
+          total: response.data.total || 0
+        }));
+      } else {
+        throw new Error(response.message || 'Failed to fetch reviews');
+      }
+    } catch (err) {
+      console.error('Error fetching reviews:', err);
+      setError(err.message || 'Failed to load reviews');
+      setReviews([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock data for fallback (keeping some for demo purposes if API fails)
+  const mockReviews = [
     {
       id: 1,
       customerName: "Rajesh Kumar",
@@ -94,23 +145,27 @@ const ReviewsManager = ({ onBack }) => {
     },
   ];
 
+  // Filter reviews based on search term (rating filtering is done on backend)
   const filteredReviews = reviews.filter((review) => {
+    if (!searchTerm) return true;
     const matchesSearch =
-      review.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.comment.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRating =
-      filterRating === "all" || review.rating.toString() === filterRating;
-    return matchesSearch && matchesRating;
+      review.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.comment?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.serviceName?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
   });
 
-  const averageRating =
-    reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
-  const totalReviews = reviews.length;
+  // Calculate statistics
+  const averageRating = reviews.length > 0 
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+    : 0;
+  const totalReviews = pagination.total;
   const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => ({
     rating,
     count: reviews.filter((r) => r.rating === rating).length,
-    percentage:
-      (reviews.filter((r) => r.rating === rating).length / totalReviews) * 100,
+    percentage: reviews.length > 0 
+      ? (reviews.filter((r) => r.rating === rating).length / reviews.length) * 100 
+      : 0,
   }));
 
   const handleReply = (reviewId, replyText) => {
@@ -213,6 +268,51 @@ const ReviewsManager = ({ onBack }) => {
             ) : (
               <ReplyForm reviewId={selectedReview.id} onReply={handleReply} />
             )}
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+          <Card className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading reviews...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <Button variant="outline" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+          <Card className="p-8 text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Error Loading Reviews
+            </h2>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Button onClick={fetchReviews} variant="primary">
+              Retry
+            </Button>
           </Card>
         </div>
       </div>
@@ -424,7 +524,7 @@ const ReviewsManager = ({ onBack }) => {
           ))}
         </div>
 
-        {filteredReviews.length === 0 && (
+        {filteredReviews.length === 0 && !loading && (
           <Card className="p-12 text-center">
             <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -435,6 +535,38 @@ const ReviewsManager = ({ onBack }) => {
                 ? "Try adjusting your search or filter criteria."
                 : "Customer reviews will appear here once they start reviewing your business."}
             </p>
+          </Card>
+        )}
+
+        {/* Pagination */}
+        {pagination.total > pagination.limit && (
+          <Card className="p-4 mt-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} reviews
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                  disabled={pagination.page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Page {pagination.page} of {Math.ceil(pagination.total / pagination.limit)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                  disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </Card>
         )}
       </div>

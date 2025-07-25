@@ -50,6 +50,7 @@ import FinancialManager from "../components/seller/FinancialManager";
 import FinancialDashboard from "../components/seller/FinancialDashboard";
 import CRMManager from "../components/seller/CRMManager";
 import SellerCustomerAnalytics from "../components/seller/SellerCustomerAnalytics";
+import SettlementOrderManagement from "../components/seller/SettlementOrderManagement";
 import apiService from "../utils/api";
 
 const SellerPanel = () => {
@@ -59,6 +60,7 @@ const SellerPanel = () => {
   const [serviceManagementTab, setServiceManagementTab] = useState("orders");
   const [dashboardData, setDashboardData] = useState(null);
   const [customerAnalyticsData, setCustomerAnalyticsData] = useState(null);
+  const [customerReviews, setCustomerReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -84,6 +86,7 @@ const SellerPanel = () => {
     if (user && user.userType === "seller") {
       fetchDashboardData();
       fetchCustomerAnalytics();
+      fetchCustomerReviews();
     }
   }, [user]);
 
@@ -104,6 +107,24 @@ const SellerPanel = () => {
       console.error('Customer analytics fetch error:', err);
       // Use fallback mock data if API fails
       setCustomerAnalyticsData(mockSellerCustomerAnalytics);
+    }
+  };
+
+  // Fetch customer reviews data
+  const fetchCustomerReviews = async () => {
+    try {
+      console.log('Fetching customer reviews...');
+      const response = await apiService.getSellerReviews({ page: 1, limit: 10 });
+      if (response.success) {
+        console.log('Customer reviews loaded:', response.data);
+        setCustomerReviews(response.data.reviews || []);
+      } else {
+        console.warn('Failed to load customer reviews:', response.message);
+        setCustomerReviews([]);
+      }
+    } catch (err) {
+      console.error('Customer reviews fetch error:', err);
+      setCustomerReviews([]);
     }
   };
 
@@ -278,6 +299,11 @@ const SellerPanel = () => {
   const handleServiceManagementView = (tab = "orders") => {
     setServiceManagementTab(tab);
     setCurrentView("service-management");
+  };
+
+  // Handle settlement order management navigation
+  const handleSettlementOrderManagement = () => {
+    setCurrentView("settlement-order-management");
   };
 
   // Handle activity-specific navigation
@@ -594,6 +620,10 @@ const SellerPanel = () => {
 
   if (currentView === "customer-analytics") {
     return <SellerCustomerAnalytics onBack={handleBackToDashboard} />;
+  }
+
+  if (currentView === "settlement-order-management") {
+    return <SettlementOrderManagement onBack={handleBackToDashboard} />;
   }
 
   // Mobile Orders View (Same as Desktop BookingsManager)
@@ -1661,44 +1691,7 @@ const SellerPanel = () => {
     },
   ];
 
-  const customerReviews = [
-    {
-      id: 1,
-      customerName: "Rajesh Kumar",
-      rating: 5,
-      date: "2 hours ago",
-      comment:
-        "Excellent service and very professional staff! The food quality was outstanding and delivery was on time. Highly recommended for any event.",
-      verified: true,
-    },
-    {
-      id: 2,
-      customerName: "Sunita Gurung",
-      rating: 4,
-      date: "2 days ago",
-      comment:
-        "Good food quality and timely delivery. The presentation could be improved a bit, but overall satisfied with the service.",
-      verified: true,
-    },
-    {
-      id: 3,
-      customerName: "Amit Sharma",
-      rating: 5,
-      date: "1 week ago",
-      comment:
-        "Amazing experience! The team was very responsive and accommodating. Will definitely use their services again.",
-      verified: false,
-    },
-    {
-      id: 4,
-      customerName: "Deepika Rai",
-      rating: 4,
-      date: "2 weeks ago",
-      comment:
-        "Professional service with good attention to detail. Pricing is reasonable and staff is friendly.",
-      verified: true,
-    },
-  ];
+  // customerReviews is now fetched from API and stored in state
 
   const performanceData = [
     { month: "Jan", views: 1850, inquiries: 32, bookings: 18 },
@@ -2364,59 +2357,68 @@ const SellerPanel = () => {
                           size="sm"
                           onClick={() => handleViewChange("reviews")}
                         >
-                          View All (12)
+                          View All ({customerReviews.length})
                         </Button>
                       </div>
                       <div className="space-y-4">
-                        {customerReviews.slice(0, 3).map((review) => (
-                          <div
-                            key={review.id}
-                            className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                                  {review.customerName
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")}
-                                </div>
-                                <div>
-                                  <div className="flex items-center space-x-2">
-                                    <p className="font-medium text-gray-900 text-sm">
-                                      {review.customerName}
-                                    </p>
-                                    {review.verified && (
-                                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                                        Verified
-                                      </span>
-                                    )}
+                        {customerReviews.length > 0 ? (
+                          customerReviews.slice(0, 3).map((review) => (
+                            <div
+                              key={review.id}
+                              className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                                    {review.customerName
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
                                   </div>
-                                  <div className="flex items-center space-x-2">
-                                    <div className="flex">
-                                      {[...Array(5)].map((_, i) => (
-                                        <Star
-                                          key={i}
-                                          className={`w-4 h-4 ${
-                                            i < review.rating
-                                              ? "text-yellow-400 fill-current"
-                                              : "text-gray-300"
-                                          }`}
-                                        />
-                                      ))}
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <p className="font-medium text-gray-900 text-sm">
+                                        {review.customerName}
+                                      </p>
+                                      {review.verified && (
+                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                          Verified
+                                        </span>
+                                      )}
                                     </div>
-                                    <span className="text-sm text-gray-500">
-                                      {review.date}
-                                    </span>
+                                    <div className="flex items-center space-x-2">
+                                      <div className="flex">
+                                        {[...Array(5)].map((_, i) => (
+                                          <Star
+                                            key={i}
+                                            className={`w-4 h-4 ${
+                                              i < review.rating
+                                                ? "text-yellow-400 fill-current"
+                                                : "text-gray-300"
+                                            }`}
+                                          />
+                                        ))}
+                                      </div>
+                                      <span className="text-sm text-gray-500">
+                                        {review.date}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
+                              <p className="text-gray-700 text-sm leading-relaxed">
+                                "{review.comment.substring(0, 100)}..."
+                              </p>
                             </div>
-                            <p className="text-gray-700 text-sm leading-relaxed">
-                              "{review.comment.substring(0, 100)}..."
+                          ))
+                        ) : (
+                          <div className="text-center py-8">
+                            <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600 text-sm">
+                              No reviews yet. Customer reviews will appear here once they start reviewing your services.
                             </p>
                           </div>
-                        ))}
+                        )}
 
                         {/* Review Summary */}
                         <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
@@ -2427,14 +2429,19 @@ const SellerPanel = () => {
                               </p>
                               <div className="flex items-center space-x-2">
                                 <span className="text-2xl font-bold text-yellow-600">
-                                  4.6
+                                  {customerReviews.length > 0 
+                                    ? (customerReviews.reduce((sum, review) => sum + review.rating, 0) / customerReviews.length).toFixed(1)
+                                    : '0.0'
+                                  }
                                 </span>
                                 <div className="flex">
                                   {[...Array(5)].map((_, i) => (
                                     <Star
                                       key={i}
                                       className={`w-5 h-5 ${
-                                        i < 4
+                                        i < Math.round(customerReviews.length > 0 
+                                          ? customerReviews.reduce((sum, review) => sum + review.rating, 0) / customerReviews.length
+                                          : 0)
                                           ? "text-yellow-400 fill-current"
                                           : "text-gray-300"
                                       }`}
@@ -2442,7 +2449,7 @@ const SellerPanel = () => {
                                   ))}
                                 </div>
                                 <span className="text-sm text-gray-600">
-                                  (12 reviews)
+                                  ({customerReviews.length} reviews)
                                 </span>
                               </div>
                             </div>
@@ -2450,7 +2457,12 @@ const SellerPanel = () => {
                               <p className="text-sm text-gray-600">
                                 Response Rate
                               </p>
-                              <p className="font-bold text-green-600">95%</p>
+                              <p className="font-bold text-green-600">
+                                {customerReviews.length > 0 
+                                  ? Math.round((customerReviews.filter(r => r.replied).length / customerReviews.length) * 100)
+                                  : 0
+                                }%
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -2780,14 +2792,63 @@ const SellerPanel = () => {
                     </h4>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <div className="text-lg font-bold text-blue-900">3</div>
+                        <div className="text-lg font-bold text-blue-900">
+                          {dashboardData?.orders?.pending || 0}
+                        </div>
                         <div className="text-blue-700">Pending Orders</div>
                       </div>
                       <div>
                         <div className="text-lg font-bold text-green-900">
-                          ₹12,450
+                          ₹{dashboardData?.revenue?.thisMonth?.toLocaleString() || '0'}
                         </div>
                         <div className="text-blue-700">This Month</div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Settlement Tracker */}
+                <Card className="p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-green-600" />
+                    Settlement Tracker
+                  </h3>
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleSettlementOrderManagement}
+                      variant="primary"
+                      className="w-full justify-start"
+                      icon={ShoppingCart}
+                    >
+                      Order Management
+                    </Button>
+                    <Button
+                      onClick={() => handleServiceManagementView("settlements")}
+                      variant="outline"
+                      className="w-full justify-start"
+                      icon={DollarSign}
+                    >
+                      Settlement History
+                    </Button>
+                  </div>
+
+                  {/* Settlement Stats */}
+                  <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-green-900 mb-3">
+                      Settlement Stats
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <div className="text-lg font-bold text-green-900">
+                          {dashboardData?.settlements?.pending || 0}
+                        </div>
+                        <div className="text-green-700">Pending Settlements</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-blue-900">
+                          ₹{dashboardData?.settlements?.thisWeek?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-green-700">This Week</div>
                       </div>
                     </div>
                   </div>

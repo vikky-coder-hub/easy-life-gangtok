@@ -956,7 +956,6 @@ export const AnalyticsService = {
         previousStartDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
         break;
       case 'month':
-      case 'last30days':
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         previousStartDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
         break;
@@ -976,11 +975,6 @@ export const AnalyticsService = {
       businessId: business._id,
       bookingDate: { $gte: previousStartDate, $lt: startDate }
     });
-
-    // Get all-time bookings for transaction history
-    const allBookings = await Booking.find({ 
-      businessId: business._id 
-    }).populate('customerId', 'name email').sort({ bookingDate: -1 });
 
     // Calculate financial metrics
     const paidBookings = currentBookings.filter(b => b.paymentStatus === 'paid');
@@ -1008,31 +1002,6 @@ export const AnalyticsService = {
     const previousAvgOrderValue = previousPaidBookings.length > 0 ? Math.round(previousSales / previousPaidBookings.length) : 0;
     const avgOrderGrowth = calculateGrowth(avgOrderValue, previousAvgOrderValue);
 
-    // Generate monthly data for charts (last 6 months)
-    const monthlyData = [];
-    for (let i = 5; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      
-      const monthBookings = await Booking.find({
-        businessId: business._id,
-        bookingDate: { $gte: monthStart, $lte: monthEnd },
-        paymentStatus: 'paid'
-      });
-      
-      const revenue = monthBookings.reduce((sum, b) => sum + b.amount, 0);
-      const profit = monthBookings.reduce((sum, b) => sum + (b.amount - b.commission), 0);
-      const expenses = monthBookings.reduce((sum, b) => sum + b.commission, 0);
-      
-      monthlyData.push({
-        month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
-        revenue,
-        profit,
-        expenses,
-        transactions: monthBookings.length
-      });
-    }
-
     // Generate hourly data for charts (simulate realistic data)
     const hourlyData = [];
     const hours = period === 'today' || period === 'yesterday' ? 24 : 7;
@@ -1057,77 +1026,32 @@ export const AnalyticsService = {
       }
     }
 
-    // Recent transactions (map all bookings to transaction format)
-    const recentTransactions = allBookings.slice(0, 50).map(booking => ({
+    // Recent transactions
+    const recentTransactions = currentBookings.slice(0, 10).map(booking => ({
       id: booking._id,
-      invoiceNumber: `INV-${booking._id.toString().slice(-6).toUpperCase()}`,
-      date: new Date(booking.bookingDate).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
-      }),
-      customerName: booking.customerId?.name || 'Unknown Customer',
-      service: booking.service || 'Service',
-      amount: booking.amount || 0,
-      platformFee: booking.commission || 0,
-      netAmount: (booking.amount || 0) - (booking.commission || 0),
-      status: booking.status || 'pending',
-      paymentMethod: booking.paymentMethod || 'Online',
+      customer: booking.customerId?.name || 'Unknown Customer',
+      amount: booking.amount,
       time: this.getRelativeTime(booking.createdAt),
-      customer: booking.customerId?.name || 'Unknown Customer'
+      status: booking.status,
+      service: booking.service || 'Service'
     }));
 
-    // Calculate profit (earnings after platform fees)
-    const profit = totalEarnings;
-    const totalExpenses = platformFees; // Platform fees are the main expense
-    
     return {
-      // Basic metrics
       totalSales,
       totalOrders: currentBookings.length,
       avgOrderValue,
-      profit,
+      profit: totalEarnings,
       growth: salesGrowth,
       previousSales,
       platformFees,
       totalEarnings,
       earningsGrowth,
       avgOrderGrowth,
-      
-      // Charts data
       hourlyData,
-      monthlyData,
-      
-      // Transactions
       recentTransactions,
-      transactions: recentTransactions, // Alias for compatibility
-      
-      // Order status breakdown
       pendingOrders: currentBookings.filter(b => b.status === 'pending').length,
       completedOrders: currentBookings.filter(b => b.status === 'completed').length,
-      cancelledOrders: currentBookings.filter(b => b.status === 'cancelled').length,
-      
-      // Financial overview for manager
-      financialOverview: {
-        currentMonth: {
-          totalRevenue: totalSales,
-          platformFees: platformFees,
-          netRevenue: totalEarnings,
-          totalExpenses: totalExpenses,
-          profit: profit,
-          transactions: paidBookings.length,
-          averageOrderValue: avgOrderValue
-        },
-        previousMonth: {
-          totalRevenue: previousSales,
-          platformFees: previousPlatformFees,
-          netRevenue: previousEarnings,
-          totalExpenses: previousPlatformFees,
-          profit: previousEarnings,
-          transactions: previousPaidBookings.length,
-          averageOrderValue: previousAvgOrderValue
-        }
-      }
+      cancelledOrders: currentBookings.filter(b => b.status === 'cancelled').length
     };
   },
 

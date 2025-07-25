@@ -65,4 +65,17 @@ export const reviewController = {
       next(error);
     }
   },
+
+  async getSellerReviews(req, res, next) {
+    try {
+      const { page = 1, limit = 10, rating } = req.query;
+      const reviews = await ReviewService.getSellerReviews(req.user.userId, { page, limit, rating });
+      sendResponse(res, 200, {
+        success: true,
+        data: reviews,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

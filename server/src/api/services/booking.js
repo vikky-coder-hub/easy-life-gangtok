@@ -99,6 +99,112 @@ export const BookingService = {
     return bookings;
   },
 
+  async getSellerBookings(sellerId, user) {
+    // Ensure the user can only access their own business bookings unless they're admin
+    if (user.userType !== 'admin' && user.userId !== sellerId) {
+      throw new Error('Unauthorized');
+    }
+
+    // First find the business owned by this seller
+    const business = await Business.findOne({ userId: sellerId });
+    if (!business) {
+      // Return empty array if no business found
+      return [];
+    }
+
+    const bookings = await Booking.find({ businessId: business._id })
+      .populate('customerId', 'name email phone profileImage')
+      .populate('businessId', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    // Transform data to match frontend expectations
+    const transformedBookings = bookings.map(booking => ({
+      ...booking.toObject(),
+      id: booking._id,
+      customer: {
+        name: booking.customerId.name,
+        email: booking.customerId.email,
+        phone: booking.customerId.phone,
+      },
+      eventDate: booking.eventDate ? new Date(booking.eventDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }) : '',
+      eventTime: booking.eventTime || '',
+      orderDate: booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }) : '',
+      platformFee: booking.commission || 0,
+      netAmount: booking.amount ? (booking.amount - (booking.commission || 0)) : 0,
+      priority: booking.priority || 'medium',
+      serviceType: booking.serviceType || booking.service,
+      estimatedDuration: booking.estimatedDuration || '2-4 hours',
+      requiresApproval: booking.requiresApproval !== false,
+      notifications: [],
+      customerName: booking.customerId.name,
+      specialRequests: booking.specialRequests || 'No special requests',
+      description: booking.description || `${booking.service} service requested`,
+      customerRating: booking.customerRating || null,
+      customerReview: booking.customerReview || null,
+      cancellationReason: booking.cancellationReason || null,
+    }));
+
+    return transformedBookings;
+  },
+
+  async getSellerOrderStats(sellerId, user) {
+    // Ensure the user can only access their own business stats unless they're admin
+    if (user.userType !== 'admin' && user.userId !== sellerId) {
+      throw new Error('Unauthorized');
+    }
+
+    // First find the business owned by this seller
+    const business = await Business.findOne({ userId: sellerId });
+    if (!business) {
+      // Return empty stats if no business found
+      return {
+        total: 0,
+        pending: 0,
+        confirmed: 0,
+        inProgress: 0,
+        completed: 0,
+        cancelled: 0,
+        rejected: 0,
+        totalRevenue: 0,
+        totalEarnings: 0,
+        platformFees: 0,
+      };
+    }
+
+    // Get all bookings for this business
+    const bookings = await Booking.find({ businessId: business._id });
+
+    // Calculate statistics
+    const stats = {
+      total: bookings.length,
+      pending: bookings.filter(b => b.status === 'pending').length,
+      confirmed: bookings.filter(b => b.status === 'confirmed').length,
+      inProgress: bookings.filter(b => b.status === 'in-progress').length,
+      completed: bookings.filter(b => b.status === 'completed').length,
+      cancelled: bookings.filter(b => b.status === 'cancelled').length,
+      rejected: bookings.filter(b => b.status === 'rejected').length,
+      totalRevenue: bookings
+        .filter(b => b.paymentStatus === 'paid')
+        .reduce((sum, b) => sum + (b.amount || 0), 0),
+      totalEarnings: bookings
+        .filter(b => b.paymentStatus === 'paid')
+        .reduce((sum, b) => sum + ((b.amount || 0) - (b.commission || 0)), 0),
+      platformFees: bookings
+        .filter(b => b.paymentStatus === 'paid')
+        .reduce((sum, b) => sum + (b.commission || 0), 0),
+    };
+
+    return stats;
+  },
+
   async updateStatus(id, status, cancellationReason, user) {
     const booking = await Booking.findById(id);
     if (!booking) throw new Error('Booking not found');

@@ -251,10 +251,6 @@ class ApiService {
     return await this.request(`/analytics/seller/financial?period=${period}`);
   }
 
-  async getSellerFinancialAnalytics(period = 'last30days') {
-    return await this.request(`/analytics/seller/financial?period=${period}`);
-  }
-
   async getBusinessAnalytics(businessId, period = 'last30days') {
     return await this.request(`/analytics/business/${businessId}?period=${period}`);
   }
@@ -341,6 +337,65 @@ class ApiService {
     return await this.request(`/bookings/${bookingId}/cancel`, {
       method: 'PUT',
       body: JSON.stringify({ cancellationReason }),
+    });
+  }
+
+  // Seller Order Management APIs
+  async getSellerOrders(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/bookings/my-seller-bookings?${queryString}` : '/bookings/my-seller-bookings';
+    return await this.request(endpoint);
+  }
+
+  async getSellerOrderStats() {
+    return await this.request('/bookings/my-seller-stats');
+  }
+
+  async updateOrderStatus(orderId, status, reason = null) {
+    const body = { status };
+    if (reason) body.reason = reason;
+    
+    return await this.request(`/bookings/${orderId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Settlement Order Management APIs (for future use)
+  async getSettlementOrders(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/settlements/orders?${queryString}` : '/settlements/orders';
+    return await this.request(endpoint);
+  }
+
+  async getSettlementOrderStats() {
+    return await this.request('/settlements/orders/stats');
+  }
+
+  // Review Management APIs
+  async getSellerReviews(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/reviews/seller/me?${queryString}` : '/reviews/seller/me';
+    return await this.request(endpoint);
+  }
+
+  async createReview(reviewData) {
+    return await this.request('/reviews', {
+      method: 'POST',
+      body: JSON.stringify(reviewData),
+    });
+  }
+
+  async updateReview(reviewId, reviewData) {
+    return await this.request(`/reviews/${reviewId}`, {
+      method: 'PUT',
+      body: JSON.stringify(reviewData),
+    });
+  }
+
+  async deleteReview(reviewId) {
+    return await this.request(`/reviews/${reviewId}`, {
+      method: 'DELETE',
     });
   }
 
