@@ -69,15 +69,28 @@ const SellerPanel = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
+        console.log('Fetching seller dashboard data for user:', user?.userId);
+        
         const response = await apiService.getSellerDashboard();
+        console.log('Dashboard API response:', response);
+        
         if (response.success) {
           setDashboardData(response.data);
+          console.log('Dashboard data loaded successfully:', response.data);
+          console.log('Stats:', response.data?.stats);
+          console.log('Orders:', response.data?.orders);
+          console.log('Revenue:', response.data?.revenue);
         } else {
-          setError('Failed to load dashboard data');
+          console.error('Dashboard API failed:', response.message);
+          setError(response.message || 'Failed to load dashboard data');
         }
       } catch (err) {
         console.error('Dashboard fetch error:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        if (err.message.includes('Business not found')) {
+          setError('Please complete your business profile setup first to view dashboard data.');
+        } else {
+          setError(err.message || 'Failed to load dashboard data');
+        }
       } finally {
         setLoading(false);
       }
@@ -1600,7 +1613,7 @@ const SellerPanel = () => {
   const stats = [
     {
       label: "Total Views",
-      value: dashboardData?.stats?.businessViews?.toString() || "0",
+      value: (dashboardData?.stats?.businessViews || 0).toString(),
       icon: Eye,
       colorClass: "bg-blue-100 text-blue-600",
       change: "+12%",
@@ -1608,7 +1621,7 @@ const SellerPanel = () => {
     },
     {
       label: "Customer Inquiries",
-      value: dashboardData?.stats?.pendingInquiries?.toString() || "0",
+      value: (dashboardData?.stats?.pendingInquiries || 0).toString(),
       icon: MessageCircle,
       colorClass: "bg-green-100 text-green-600",
       change: "+8%",
@@ -1616,7 +1629,7 @@ const SellerPanel = () => {
     },
     {
       label: "Average Rating",
-      value: dashboardData?.stats?.rating?.toFixed(1) || "0.0",
+      value: (dashboardData?.stats?.rating || 0).toFixed(1),
       icon: Star,
       colorClass: "bg-yellow-100 text-yellow-600",
       change: "+0.2",
@@ -1624,7 +1637,7 @@ const SellerPanel = () => {
     },
     {
       label: "Total Earnings",
-      value: `₹${dashboardData?.stats?.totalEarnings?.toLocaleString() || "0"}`,
+      value: `₹${(dashboardData?.stats?.totalEarnings || 0).toLocaleString()}`,
       icon: DollarSign,
       colorClass: "bg-purple-100 text-purple-600",
       change: "+24%",
@@ -1693,7 +1706,8 @@ const SellerPanel = () => {
 
   // customerReviews is now fetched from API and stored in state
 
-  const performanceData = [
+  // Use real performance data from backend or fallback to mock data
+  const performanceData = dashboardData?.performanceData || [
     { month: "Jan", views: 1850, inquiries: 32, bookings: 18 },
     { month: "Feb", views: 2100, inquiries: 38, bookings: 22 },
     { month: "Mar", views: 2400, inquiries: 45, bookings: 28 },

@@ -718,6 +718,7 @@ export const AnalyticsService = {
   async getSellerDashboard(userId) {
     // Get seller's business
     const business = await Business.findOne({ userId: userId });
+    
     if (!business) throw new Error('Business not found');
 
     // Get business bookings
@@ -759,6 +760,60 @@ export const AnalyticsService = {
     const averageRating = reviews.length > 0 ? 
       reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0;
 
+    // Calculate monthly revenue (current month)
+    const currentMonth = new Date();
+    const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const monthlyRevenue = await Booking.aggregate([
+      { 
+        $match: { 
+          businessId: business._id, 
+          paymentStatus: 'paid',
+          createdAt: { $gte: startOfMonth }
+        } 
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    // Calculate today's revenue
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    
+    const todayRevenue = await Booking.aggregate([
+      { 
+        $match: { 
+          businessId: business._id, 
+          paymentStatus: 'paid',
+          createdAt: { $gte: startOfToday, $lte: endOfToday }
+        } 
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    // Calculate weekly settlements (current week)
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    const weeklySettlements = await Booking.aggregate([
+      { 
+        $match: { 
+          businessId: business._id, 
+          status: 'completed',
+          paymentStatus: 'paid',
+          createdAt: { $gte: startOfWeek }
+        } 
+      },
+      { $group: { _id: null, total: { $sum: { $subtract: ['$amount', '$commission'] } } } }
+    ]);
+
+    // Get pending settlements count
+    const pendingSettlements = await Booking.countDocuments({
+      businessId: business._id,
+      status: 'completed',
+      paymentStatus: 'paid'
+      // Add settlement status check when you implement settlements
+    });
+
     const stats = {
       totalBookings: bookings.length,
       totalEarnings: totalEarnings.length > 0 ? totalEarnings[0].total : 0,
@@ -770,13 +825,75 @@ export const AnalyticsService = {
       totalRevenue: Object.values(statsMap).reduce((sum, stat) => sum + stat.revenue, 0)
     };
 
-    return {
+    // Structure data to match frontend expectations
+    const orders = {
+      pending: statsMap.pending?.count || 0,
+      confirmed: statsMap.confirmed?.count || 0,
+      completed: statsMap.completed?.count || 0,
+      cancelled: statsMap.cancelled?.count || 0,
+      total: bookings.length
+    };
+
+    const revenue = {
+      today: todayRevenue.length > 0 ? todayRevenue[0].total : 0,
+      thisMonth: monthlyRevenue.length > 0 ? monthlyRevenue[0].total : 0,
+      total: stats.totalRevenue,
+      earnings: stats.totalEarnings
+    };
+
+    const settlements = {
+      pending: pendingSettlements,
+      thisWeek: weeklySettlements.length > 0 ? weeklySettlements[0].total : 0,
+      total: stats.totalEarnings
+    };
+
+    // Get performance data for the last 4 months
+    const performanceData = [];
+    for (let i = 3; i >= 0; i--) {
+      const monthStart = new Date();
+      monthStart.setMonth(monthStart.getMonth() - i, 1);
+      monthStart.setHours(0, 0, 0, 0);
+      
+      const monthEnd = new Date(monthStart);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      monthEnd.setDate(0);
+      monthEnd.setHours(23, 59, 59, 999);
+
+      const monthBookings = await Booking.countDocuments({
+        businessId: business._id,
+        createdAt: { $gte: monthStart, $lte: monthEnd }
+      });
+
+      const monthInquiries = await Booking.countDocuments({
+        businessId: business._id,
+        status: 'pending',
+        createdAt: { $gte: monthStart, $lte: monthEnd }
+      });
+
+      // Mock views data - in a real app, you'd track this
+      const monthViews = Math.floor(Math.random() * 1000) + 1500 + (i * 200);
+
+      performanceData.push({
+        month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+        views: monthViews,
+        inquiries: monthInquiries,
+        bookings: monthBookings
+      });
+    }
+
+    const dashboardData = {
       stats,
+      orders,
+      revenue,
+      settlements,
       recentBookings: bookings,
       businessInfo: business,
       recentReviews: reviews,
-      bookingsByStatus: statsMap
+      bookingsByStatus: statsMap,
+      performanceData
     };
+    
+    return dashboardData;
   },
 
   async getAdminDashboard() {
@@ -936,6 +1053,7 @@ export const AnalyticsService = {
   async getSellerFinancialAnalytics(userId, period = 'last30days') {
     // Get seller's business
     const business = await Business.findOne({ userId: userId });
+    
     if (!business) throw new Error('Business not found');
 
     const now = new Date();
@@ -1036,7 +1154,7 @@ export const AnalyticsService = {
       service: booking.service || 'Service'
     }));
 
-    return {
+    const financialAnalytics = {
       totalSales,
       totalOrders: currentBookings.length,
       avgOrderValue,
@@ -1053,6 +1171,8 @@ export const AnalyticsService = {
       completedOrders: currentBookings.filter(b => b.status === 'completed').length,
       cancelledOrders: currentBookings.filter(b => b.status === 'cancelled').length
     };
+    
+    return financialAnalytics;
   },
 
   getRelativeTime(date) {

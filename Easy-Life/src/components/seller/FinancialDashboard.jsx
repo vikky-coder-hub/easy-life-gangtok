@@ -31,13 +31,25 @@ const FinancialDashboard = ({ onViewDetails }) => {
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching financial data for period:', selectedPeriod);
+      
       const response = await apiService.getSellerFinancialAnalytics(selectedPeriod);
+      console.log('Financial API response:', response);
+      
       if (response.success) {
         setFinancialData(response.data);
+        console.log('Financial data loaded successfully:', response.data);
+      } else {
+        console.error('Financial API failed:', response.message);
+        setError(response.message || 'Failed to load financial data');
       }
     } catch (error) {
       console.error('Error fetching financial data:', error);
-      setError('Failed to load financial data');
+      if (error.message.includes('Business not found')) {
+        setError('Please complete your business profile setup first to view financial data.');
+      } else {
+        setError(error.message || 'Failed to load financial data');
+      }
     } finally {
       setLoading(false);
     }
@@ -348,42 +360,51 @@ const FinancialDashboard = ({ onViewDetails }) => {
               Recent Transactions
             </h3>
             <div className="space-y-3">
-              {recentTransactions.slice(0, 4).map((transaction) => (
-                <motion.div
-                  key={transaction.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="bg-white p-3 rounded-lg border border-gray-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {transaction.customer}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {transaction.service}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">
-                        ₹{transaction.amount}
-                      </p>
-                      <div className="flex items-center">
-                        <div
-                          className={`w-2 h-2 rounded-full mr-1 ${
-                            transaction.status === "completed"
-                              ? "bg-green-500"
-                              : "bg-yellow-500"
-                          }`}
-                        ></div>
-                        <span className="text-xs text-gray-500">
-                          {transaction.time}
-                        </span>
+              {recentTransactions.length > 0 ? (
+                recentTransactions.slice(0, 4).map((transaction) => (
+                  <motion.div
+                    key={transaction.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="bg-white p-3 rounded-lg border border-gray-200"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {transaction.customer}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {transaction.service}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">
+                          ₹{transaction.amount?.toLocaleString()}
+                        </p>
+                        <div className="flex items-center">
+                          <div
+                            className={`w-2 h-2 rounded-full mr-1 ${
+                              transaction.status === "completed"
+                                ? "bg-green-500"
+                                : "bg-yellow-500"
+                            }`}
+                          ></div>
+                          <span className="text-xs text-gray-500">
+                            {transaction.time}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 text-sm">
+                    No transactions yet. Transactions will appear here once customers start booking your services.
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button

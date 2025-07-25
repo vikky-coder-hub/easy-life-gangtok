@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   DollarSign,
@@ -23,6 +23,7 @@ import {
 import Card from "../common/Card";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import apiService from "../../utils/api";
 
 const FinancialManager = ({ onBack }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -32,109 +33,105 @@ const FinancialManager = ({ onBack }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // API state management
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [financialData, setFinancialData] = useState(null);
 
-  // Mock financial data
+  // Fetch financial data
+  useEffect(() => {
+    fetchFinancialData();
+  }, [selectedPeriod]);
+
+  const fetchFinancialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching financial data for period:', selectedPeriod);
+      
+      const response = await apiService.getSellerFinancialAnalytics(selectedPeriod);
+      console.log('Financial API response:', response);
+      
+      if (response.success) {
+        setFinancialData(response.data);
+        console.log('Financial data loaded successfully:', response.data);
+      } else {
+        console.error('Financial API failed:', response.message);
+        setError(response.message || 'Failed to load financial data');
+      }
+    } catch (error) {
+      console.error('Error fetching financial data:', error);
+      if (error.message.includes('Business not found')) {
+        setError('Please complete your business profile setup first to view financial data.');
+      } else {
+        setError(error.message || 'Failed to load financial data');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get financial overview from API data - always use real data, no fallback to demo data
   const financialOverview = {
     currentMonth: {
-      totalRevenue: 42500,
-      platformFees: 6375, // 15%
-      netRevenue: 36125,
-      totalExpenses: 8500,
-      profit: 27625,
-      transactions: 28,
-      averageOrderValue: 1518,
+      totalRevenue: financialData?.totalSales || 0,
+      platformFees: financialData?.platformFees || 0,
+      netRevenue: financialData?.totalEarnings || 0,
+      totalExpenses: 0, // This would need to be added to the API
+      profit: financialData?.profit || 0,
+      transactions: financialData?.totalOrders || 0,
+      averageOrderValue: financialData?.avgOrderValue || 0,
     },
     previousMonth: {
-      totalRevenue: 38200,
-      platformFees: 5730,
-      netRevenue: 32470,
-      totalExpenses: 7800,
-      profit: 24670,
-      transactions: 25,
-      averageOrderValue: 1528,
+      totalRevenue: financialData?.previousSales || 0,
+      platformFees: Math.round((financialData?.previousSales || 0) * 0.15),
+      netRevenue: Math.round((financialData?.previousSales || 0) * 0.85),
+      totalExpenses: 0,
+      profit: Math.round((financialData?.previousSales || 0) * 0.85),
+      transactions: 0,
+      averageOrderValue: 0,
     },
     yearToDate: {
-      totalRevenue: 145200,
-      platformFees: 21780,
-      netRevenue: 123420,
-      totalExpenses: 28900,
-      profit: 94520,
-      transactions: 95,
+      totalRevenue: financialData?.totalSales || 0,
+      platformFees: financialData?.platformFees || 0,
+      netRevenue: financialData?.totalEarnings || 0,
+      totalExpenses: 0,
+      profit: financialData?.profit || 0,
+      transactions: financialData?.totalOrders || 0,
     },
   };
 
-  const monthlyData = [
-    { month: "Jan", revenue: 42500, expenses: 8500, profit: 27625 },
-    { month: "Dec", revenue: 38200, expenses: 7800, profit: 24670 },
-    { month: "Nov", revenue: 35800, expenses: 7200, profit: 22400 },
-    { month: "Oct", revenue: 40100, expenses: 8100, profit: 25200 },
-    { month: "Sep", revenue: 36900, expenses: 7600, profit: 23100 },
-    { month: "Aug", revenue: 39500, expenses: 8000, profit: 24875 },
+  // Get monthly data from API - always use real data, no fallback to demo data
+  const monthlyData = financialData?.hourlyData ? 
+    financialData.hourlyData.map((item, index) => ({
+      month: item.time,
+      revenue: item.sales,
+      expenses: Math.round(item.sales * 0.2), // Estimate 20% expenses
+      profit: Math.round(item.sales * 0.65), // After platform fees and expenses
+    })) : [
+    { month: "Jan", revenue: 0, expenses: 0, profit: 0 },
+    { month: "Dec", revenue: 0, expenses: 0, profit: 0 },
+    { month: "Nov", revenue: 0, expenses: 0, profit: 0 },
+    { month: "Oct", revenue: 0, expenses: 0, profit: 0 },
+    { month: "Sep", revenue: 0, expenses: 0, profit: 0 },
+    { month: "Aug", revenue: 0, expenses: 0, profit: 0 },
   ];
 
-  // Mock transaction data
-  const transactions = [
-    {
-      id: "T001",
-      invoiceNumber: "INV-2025-001",
-      date: "Jan 15, 2025",
-      customerName: "Rajesh Kumar",
-      service: "Electrical Repair",
-      amount: 2500,
-      platformFee: 375,
-      netAmount: 2125,
-      status: "completed",
+  // Get transaction data from API - always use real data, no demo data fallback
+  const transactions = financialData?.recentTransactions ? 
+    financialData.recentTransactions.map((transaction, index) => ({
+      id: transaction.id,
+      invoiceNumber: `INV-2025-${String(index + 1).padStart(3, '0')}`,
+      date: new Date(transaction.time || Date.now()).toLocaleDateString(),
+      customerName: transaction.customer,
+      service: transaction.service,
+      amount: transaction.amount,
+      platformFee: Math.round(transaction.amount * 0.15),
+      netAmount: Math.round(transaction.amount * 0.85),
+      status: transaction.status,
       paymentMethod: "UPI",
-    },
-    {
-      id: "T002",
-      invoiceNumber: "INV-2025-002",
-      date: "Jan 14, 2025",
-      customerName: "Priya Sharma",
-      service: "Home Cleaning",
-      amount: 1800,
-      platformFee: 270,
-      netAmount: 1530,
-      status: "completed",
-      paymentMethod: "Card",
-    },
-    {
-      id: "T003",
-      invoiceNumber: "INV-2025-003",
-      date: "Jan 13, 2025",
-      customerName: "Amit Patel",
-      service: "Plumbing Service",
-      amount: 3200,
-      platformFee: 480,
-      netAmount: 2720,
-      status: "pending",
-      paymentMethod: "UPI",
-    },
-    {
-      id: "T004",
-      invoiceNumber: "INV-2025-004",
-      date: "Jan 12, 2025",
-      customerName: "Sunita Singh",
-      service: "AC Repair",
-      amount: 4500,
-      platformFee: 675,
-      netAmount: 3825,
-      status: "completed",
-      paymentMethod: "Cash",
-    },
-    {
-      id: "T005",
-      invoiceNumber: "INV-2025-005",
-      date: "Jan 11, 2025",
-      customerName: "Ravi Gupta",
-      service: "Electrical Installation",
-      amount: 6800,
-      platformFee: 1020,
-      netAmount: 5780,
-      status: "failed",
-      paymentMethod: "Card",
-    },
-  ];
+    })) : [];
 
   // Mock expense data
   const expenses = [
